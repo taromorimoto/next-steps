@@ -2,7 +2,7 @@
 
 ## 0.3.0
 
-- New `language` setting: `en` (default) or `fi` for Finnish labels. Set it in the `/config` menu, or with `claude plugin configure next-steps --values-stdin`.
+- New `language` setting: `en` (default) or `fi` for Finnish labels. Set it in the `/config` menu, or with `claude plugin configure next-steps@next-steps --values-stdin`.
 
 ## 0.2.0
 

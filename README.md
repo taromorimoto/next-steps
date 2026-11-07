@@ -39,7 +39,7 @@ In the desktop app, where `/plugin` does not run: click + next to the prompt box
 The labels are English by default. For Finnish, set the `language` option to `fi`, either in the `/config` menu or from a shell:
 
 ```
-echo '{"language":"fi"}' | claude plugin configure next-steps --values-stdin
+echo '{"language":"fi"}' | claude plugin configure next-steps@next-steps --values-stdin
 ```
 
 The suggested steps always follow the language of your request.
