@@ -19,7 +19,11 @@ const stepRow = async (ui: any, i: number) => {
   const parts: string[] = []
   const walk = (node: any) => {
     if (node === null || typeof node !== 'object') return
-    if (node.type === 'Text') parts.push((node.children ?? []).filter((c: any) => typeof c === 'string').join(''))
+    // A transparent star only keeps the column; it is not shown.
+    if (node.type === 'Text' && node.props?.color !== 'transparent') {
+      const text = (node.children ?? []).filter((c: any) => typeof c === 'string').join('').trim()
+      if (text.length > 0) parts.push(text)
+    }
     if (node.type === 'Button' && String(node.props?.key).startsWith(`text-${i}-`)) parts.push(node.props.label)
     for (const child of node.children ?? []) walk(child)
   }
@@ -426,6 +430,6 @@ test('the step text toggles the step too, wraps into lines, and lights the row o
   await band.press({ key: 'text-0-1' })
   expect((await stepRow(band, 0)).startsWith('☑ ')).toBe(true)
   // The row lights under the pointer.
-  expect(JSON.stringify(await band.drawn())).toContain('rgba(127, 127, 127, 0.14)')
+  expect(JSON.stringify(await band.drawn())).toContain('rgba(127, 127, 127, 0.16)')
   await band.unmount()
 })

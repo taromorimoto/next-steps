@@ -181,7 +181,7 @@ const NARROW_COLUMNS = 80
 /** About how many columns the checkbox button and star take before a step's text. */
 const STEP_INDENT = 9
 /** The row's background under the pointer: a light wash that reads on light and dark themes. */
-const HOVER_BACKGROUND = 'rgba(127, 127, 127, 0.14)'
+const HOVER_BACKGROUND = 'rgba(127, 127, 127, 0.16)'
 
 /** Splits text into lines of at most `width` characters at spaces; a longer word gets a line of its own. */
 export const wrapWords = (text: string, width: number): string[] => {
@@ -284,7 +284,7 @@ const drawSummary = async (
       ) : stepList.length === 0 ? null : (
         // The checkbox buttons stand taller than a line of text: the rows always
         // keep room between them, so neighbouring buttons never overlap.
-        <Box flexDirection="column" rowGap="sm" marginTop="sm">
+        <Box flexDirection="column" rowGap={hasPointer ? 'xs' : 'sm'} marginTop="sm">
           {stepList.map((step, i) => {
             const isPicked = picked.includes(i)
             const isRecommended = recommended.includes(i)
@@ -296,8 +296,12 @@ const drawSummary = async (
               <Box
                 key={`row-${i}`}
                 flexDirection="row"
-                alignItems="flex-start"
+                alignItems="center"
                 columnGap={1}
+                // Padded so the wash under the pointer covers the whole row,
+                // the taller checkbox included, not a strip behind the text.
+                paddingY={hasPointer ? 'xs' : 0}
+                paddingX={hasPointer ? 'xs' : 0}
                 hover={hasPointer ? { backgroundColor: HOVER_BACKGROUND } : undefined}
               >
                 <Button
@@ -308,7 +312,12 @@ const drawSummary = async (
                   hotkey={withHotkeys ? String(i + 1) : undefined}
                   onPress={() => toggle(i)}
                 />
-                {isRecommended ? <Text color="warning">★</Text> : null}
+                {/* The star's place is kept on every row, so all the steps' text starts in one column. */}
+                {hasPointer ? (
+                  <Text color={isRecommended ? 'warning' : 'transparent'}>★</Text>
+                ) : (
+                  <Text color="warning">{isRecommended ? '★' : ' '}</Text>
+                )}
                 <Box flexDirection="column" flexShrink={1}>
                   {lines.map((line, n) => (
                     <Button

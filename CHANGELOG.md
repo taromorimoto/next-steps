@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.1 – unreleased
+
+- The hover wash covers the whole step row, the checkbox included, instead of a strip behind the text.
+- Every step's text starts in the same column, starred or not.
+- README: a screenshot of the band.
+
 ## 0.9.0 – 2026-11-07
 
 - Click a step's text to pick it, not only its checkbox.
