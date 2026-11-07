@@ -1,38 +1,38 @@
 # Changelog
 
-## 0.7.0 – unreleased
+## 0.7.0 – 2026-11-07
 
 - The band no longer shows the task's duration.
 - The recommended star sits at the start of the step, right after the checkbox.
 - When no goal or steps could be found, the band stays hidden instead of showing a lone Close button.
 
-## 0.6.1 – unreleased
+## 0.6.1 – 2026-11-07
 
 - The duration moves beside the buttons as a compact dim time; the separate "Done" row is gone.
 - Larger checkboxes on the desktop app.
 
-## 0.6.0 – unreleased
+## 0.6.0 – 2026-11-07
 
 - Cleaner band: the goal is the title (◎, semibold) with the duration as a small line under it; checkboxes are colored, unpicked steps are dimmed, and the recommended star moves to the end of the row so every step lines up.
 - No number chips on the desktop app; on the terminal 1–5 still toggle steps.
 
-## 0.5.2 – unreleased
+## 0.5.2 – 2026-11-07
 
 - Send and Close sit in the band's top-right corner; the "Next steps" heading is gone.
 - The band fits without scrolling: the space between step rows is dropped when it would not fit.
 - Automatic language no longer falls back to English when the mod reloads during a turn.
 
-## 0.5.1 – unreleased
+## 0.5.1 – 2026-11-07
 
 - More room between the step rows, and larger checkboxes where the surface sizes text (the desktop app).
 
-## 0.5.0 – unreleased
+## 0.5.0 – 2026-11-07
 
 - The band leads with the session's goal (◎ Goal / Tavoite), read from the whole conversation by forking it, and kept stable from turn to turn unless the conversation clearly moves on.
 - Suggested steps are chosen to move toward that goal.
 - Falls back to the last request and answer when there is nothing to fork or the fork takes over 90 s.
 
-## 0.4.0 – unreleased
+## 0.4.0 – 2026-11-07
 
 - `language` now defaults to `auto`: the labels follow the language of your request (Finnish or English), falling back to the system locale for very short prompts. `en` and `fi` still fix the language.
 
