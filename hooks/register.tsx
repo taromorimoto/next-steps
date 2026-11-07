@@ -11,15 +11,15 @@ const durations = atom({ plugin: 'next-steps', key: 'durations' } as const, {})
 const MAX_ROWS = 200
 const MAX_STEPS = 5
 
-/** "45 s", "3 min 12 s", "1 h 4 min" */
+/** "45s", "3m 12s", "1h 4m" */
 export const formatDuration = (ms: number): string => {
   const total = Math.max(0, Math.round(ms / 1000))
   const h = Math.floor(total / 3600)
   const m = Math.floor((total % 3600) / 60)
   const s = total % 60
-  if (h > 0) return `${h} h ${m} min`
-  if (m > 0) return `${m} min ${s} s`
-  return `${s} s`
+  if (h > 0) return `${h}h ${m}m`
+  if (m > 0) return `${m}m ${s}s`
+  return `${s}s`
 }
 
 export type ParsedSteps = { steps: string[]; recommended: number[] }
@@ -93,7 +93,7 @@ const drawSummary = async ($: EngineInterface, ui: Elements, summary: Summary, w
     const text =
       chosen.length === 1
         ? chosen[0]!
-        : `Tee seuraavaksi nämä:\n${chosen.map((s, n) => `${n + 1}. ${s}`).join('\n')}`
+        : `Do these next:\n${chosen.map((s, n) => `${n + 1}. ${s}`).join('\n')}`
     await update($, isHidden, () => true)
     await $.prompt.submit({ text, asUser: true })
   }
@@ -102,14 +102,14 @@ const drawSummary = async ($: EngineInterface, ui: Elements, summary: Summary, w
     <Box flexDirection="column">
       <Box>
         <Text color="green">✓ </Text>
-        <Text bold>Valmis</Text>
-        <Text dimColor> · kesto {formatDuration(summary.ms)}</Text>
+        <Text bold>Done</Text>
+        <Text dimColor> · took {formatDuration(summary.ms)}</Text>
       </Box>
       {steps === null ? (
-        <Text dimColor>Haetaan seuraavia askeleita…</Text>
+        <Text dimColor>Getting next steps…</Text>
       ) : steps.length === 0 ? null : (
         <Box flexDirection="column">
-          <Text dimColor>Seuraavat askeleet (★ = suositeltu, valitse yksi tai useampi):</Text>
+          <Text dimColor>Next steps (★ = recommended, pick one or more):</Text>
           {steps.map((step, i) => (
             <Button
               key={`step-${i}`}
@@ -125,12 +125,12 @@ const drawSummary = async ($: EngineInterface, ui: Elements, summary: Summary, w
         {steps !== null && steps.length > 0 ? (
           <Button
             key="send"
-            label={picked.length > 0 ? `Lähetä valitut (${picked.length})` : 'Lähetä valitut'}
+            label={picked.length > 0 ? `Send selected (${picked.length})` : 'Send selected'}
             variant="primary"
             onPress={send}
           />
         ) : null}
-        <Button key="dismiss" label="Sulje" onPress={() => update($, isHidden, () => true)} />
+        <Button key="dismiss" label="Close" onPress={() => update($, isHidden, () => true)} />
       </Box>
     </Box>
   )
@@ -235,7 +235,7 @@ export const register: Register = on => {
     if (ms === undefined) return next(e)
     return (
       <ui.Box>
-        <ui.Text dimColor>✓ Valmis · kesto {formatDuration(ms)}</ui.Text>
+        <ui.Text dimColor>✓ Done · took {formatDuration(ms)}</ui.Text>
       </ui.Box>
     )
   })

@@ -3,18 +3,18 @@
 A Claude Code mod that shows, every time Claude finishes a task:
 
 - **how long the task took**, start to finish, and
-- **3–5 suggested next steps**, written by Opus from your request and Claude's answer. The steps Opus recommends are starred (★) and already checked. Pick any combination and press **Lähetä valitut** to send them as your next prompt.
+- **3–5 suggested next steps**, written by Opus from your request and Claude's answer. The steps Opus recommends are starred (★) and already checked. Pick any combination and press **Send selected** to send them as your next prompt.
 
 ```
-✓ Valmis · kesto 3 min 12 s
-Seuraavat askeleet (★ = suositeltu, valitse yksi tai useampi):
+✓ Done · took 3m 12s
+Next steps (★ = recommended, pick one or more):
 ☑ ★ Run the tests in CI
 ☐ Update the README
 ☑ ★ Add logout
-[ Lähetä valitut (2) ]  [ Sulje ]
+[ Send selected (2) ]  [ Close ]
 ```
 
-The labels are in Finnish; the suggested steps follow the language of your request.
+The suggested steps follow the language of your request.
 
 ## Install
 
