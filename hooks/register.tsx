@@ -208,24 +208,24 @@ const drawSummary = async (
   const sessionGoal = summary.goal ?? (await read($, goal))
   const stepCount = steps?.length ?? 0
   // Room between the rows only while the whole band still fits without scrolling.
-  const roomy = maxRows === undefined || 2 + 2 * stepCount <= maxRows
+  const roomy = maxRows === undefined || 1 + 2 * stepCount <= maxRows
 
   return (
     <Box flexDirection="column">
       <Box flexDirection="row" justifyContent="space-between" alignItems="flex-start" columnGap={3}>
-        <Box flexDirection="column" flexShrink={1} rowGap="xs">
+        <Box flexDirection="column" flexShrink={1}>
           {sessionGoal !== null ? (
             <Text weight="semibold">
               <Text color="suggestion">◎ </Text>
               {sessionGoal}
             </Text>
           ) : null}
-          <Text dimColor size="footnote">
-            <Text color="success">✓ </Text>
-            {t.done} · {t.took} {formatDuration(summary.ms, lang)}
-          </Text>
         </Box>
-        <Box flexDirection="row" columnGap={1} flexShrink={0}>
+        <Box flexDirection="row" columnGap={1} flexShrink={0} alignItems="center">
+          {/* The task's duration, compact, beside the buttons: no row of its own. */}
+          <Text dimColor size="footnote">
+            {formatDuration(summary.ms, lang)}
+          </Text>
           {steps !== null && steps.length > 0 ? (
             <Button
               key="send"
@@ -254,7 +254,7 @@ const drawSummary = async (
                 onPress={() => toggle(i)}
               >
                 {/* Where the surface draws children: a larger, colored box, the step dim until picked, the star last. */}
-                <Text size="heading" color={isPicked ? 'success' : 'inactive'}>
+                <Text size="title" color={isPicked ? 'success' : 'inactive'}>
                   {box}
                 </Text>
                 <Text dimColor={!isPicked}>{`  ${step}`}</Text>

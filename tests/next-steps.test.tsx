@@ -41,7 +41,7 @@ test('a finished turn shows its duration and selectable next steps; the picked o
   await clock.settle()
 
   const ui = await $.ui.mount({ ...row('t1'), surface: 'desktop' })
-  expect((await ui.find({ type: 'Text', text: /took/ }))?.text).toBe('✓ Done · took 3m 12s')
+  expect((await ui.find({ type: 'Text', text: /^[0-9]/ }))?.text).toBe('3m 12s')
   expect((await ui.find({ type: 'Button', key: 'step-0' }))?.props.label).toBe('☐ Lisää uloskirjautuminen')
 
   await ui.press({ key: 'step-0' })
@@ -85,7 +85,7 @@ test('a failed suggestion call still shows the duration', async ($, on) => {
   await clock.settle()
 
   const ui = await $.ui.mount({ ...row('t1'), surface: 'terminal' })
-  expect((await ui.find({ type: 'Text', text: /took/ }))?.text).toBe('✓ Done · took 45s')
+  expect((await ui.find({ type: 'Text', text: /^[0-9]/ }))?.text).toBe('45s')
   expect(await ui.find({ type: 'Button', key: 'send' })).toBeUndefined()
   await ui.unmount()
 })
@@ -106,7 +106,7 @@ test('an older row keeps its duration once a newer turn finished', async ($, on)
   await old.unmount()
 
   const fresh = await $.ui.mount({ ...row('new'), surface: 'desktop' })
-  expect((await fresh.find({ type: 'Text', text: /took/ }))?.text).toBe('✓ Done · took 1m 5s')
+  expect((await fresh.find({ type: 'Text', text: /^[0-9]/ }))?.text).toBe('1m 5s')
   expect(await fresh.find({ type: 'Button', key: 'step-0' })).toBeDefined()
   await fresh.unmount()
 })
@@ -126,7 +126,7 @@ test('where no surface draws placed rows, the band above the prompt shows the su
     surface: 'desktop',
     props: { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns: 80, scroll: { offset: 0, bodyRows: 20 }, view: {} },
   })
-  expect((await band.find({ type: 'Text', text: /took/ }))?.text).toBe('✓ Done · took 12s')
+  expect((await band.find({ type: 'Text', text: /^[0-9]/ }))?.text).toBe('12s')
   expect((await band.find({ type: 'Button', key: 'step-0' }))?.props.label).toBe('☐ Aja testit')
   await band.unmount()
 })
@@ -166,7 +166,7 @@ test('a model call that rejects leaves the duration, not a stuck loading line', 
   await clock.settle()
 
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
-  expect((await band.find({ type: 'Text', text: /took/ }))?.text).toBe('✓ Done · took 1m 37s')
+  expect((await band.find({ type: 'Text', text: /^[0-9]/ }))?.text).toBe('1m 37s')
   expect(await band.find({ type: 'Text', text: /Getting next steps/ })).toBeUndefined()
   await band.unmount()
 })
@@ -250,7 +250,7 @@ test('language "fi" draws the band in Finnish', { options: { language: 'fi' } },
   await clock.settle()
 
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
-  expect((await band.find({ type: 'Text', text: /kesto/ }))?.text).toBe('✓ Valmis · kesto 3 min 12 s')
+  expect((await band.find({ type: 'Text', text: /^[0-9]/ }))?.text).toBe('3 min 12 s')
   expect((await band.find({ type: 'Button', key: 'send' }))?.props.label).toBe('Lähetä valitut (2)')
   expect((await band.find({ type: 'Button', key: 'dismiss' }))?.props.label).toBe('Sulje')
   await band.press({ key: 'send' })
@@ -273,7 +273,7 @@ const autoTurn = async ($: any, on: any, request: string) => {
 test('language "auto" (the default) follows a Finnish request', async ($, on) => {
   const band = await autoTurn($, on, 'Voitko lisätä kirjautumisen ja testit')
   expect((await band.find({ type: 'Button', key: 'dismiss' }))?.props.label).toBe('Sulje')
-  expect((await band.find({ type: 'Text', text: /kesto/ }))?.text).toBe('✓ Valmis · kesto 3 min 12 s')
+  expect((await band.find({ type: 'Text', text: /^[0-9]/ }))?.text).toBe('3 min 12 s')
   await band.unmount()
 })
 

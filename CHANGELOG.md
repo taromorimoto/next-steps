@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.1 – unreleased
+
+- The duration moves beside the buttons as a compact dim time; the separate "Done" row is gone.
+- Larger checkboxes on the desktop app.
+
 ## 0.6.0 – unreleased
 
 - Cleaner band: the goal is the title (◎, semibold) with the duration as a small line under it; checkboxes are colored, unpicked steps are dimmed, and the recommended star moves to the end of the row so every step lines up.
