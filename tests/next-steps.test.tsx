@@ -232,3 +232,28 @@ test('the steps the model recommends start checked', async ($, on) => {
   expect((await band.find({ type: 'Button', key: 'send' }))?.props.label).toBe('Send selected (2)')
   await band.unmount()
 })
+
+test('language "fi" draws the band in Finnish', { options: { language: 'fi' } }, async ($, on) => {
+  const clock = mock.clock(on)
+  const submitted: string[] = []
+  on('turn.complete', () => ({ text: '' }))
+  on('ui.place', () => ({ value: { isPlaced: false, reason: 'no attached surface draws placed rows yet' } }))
+  on('model.complete', () => ({
+    value: { isAnswered: true, text: '[{"step": "Aja testit", "recommended": true}, {"step": "Julkaise", "recommended": true}]', usage: USAGE },
+  }))
+  on('prompt.submit', (_, e) => {
+    submitted.push(e.text)
+    return { text: e.text }
+  })
+
+  await finishTurn($)
+  await clock.settle()
+
+  const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
+  expect((await band.find({ type: 'Text', text: /kesto/ }))?.text).toBe(' · kesto 3 min 12 s')
+  expect((await band.find({ type: 'Button', key: 'send' }))?.props.label).toBe('Lähetä valitut (2)')
+  expect((await band.find({ type: 'Button', key: 'dismiss' }))?.props.label).toBe('Sulje')
+  await band.press({ key: 'send' })
+  expect(submitted.at(-1)).toBe('Tee seuraavaksi nämä:\n1. Aja testit\n2. Julkaise')
+  await band.unmount()
+})

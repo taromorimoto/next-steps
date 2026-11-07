@@ -1,8 +1,22 @@
 {
   "name": "next-steps",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "When a task finishes: how long it took, plus suggested next steps you can pick several of and send in one go",
-  "author": { "name": "taromorimoto" },
+  "author": {
+    "name": "taromorimoto"
+  },
   "license": "MIT",
-  "types": "./types/index.d.ts"
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "language": {
+      "type": "string",
+      "title": "Language",
+      "description": "Language of the band's labels: en (English) or fi (Finnish). Suggested steps always follow the language of your request.",
+      "default": "en",
+      "options": [
+        "en",
+        "fi"
+      ]
+    }
+  }
 }

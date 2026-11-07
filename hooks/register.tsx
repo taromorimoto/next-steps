@@ -11,16 +11,49 @@ const durations = atom({ plugin: 'next-steps', key: 'durations' } as const, {})
 const MAX_ROWS = 200
 const MAX_STEPS = 5
 
-/** "45s", "3m 12s", "1h 4m" */
-export const formatDuration = (ms: number): string => {
+export type Lang = 'en' | 'fi'
+
+/** "45s", "3m 12s", "1h 4m" in English; "45 s", "3 min 12 s", "1 h 4 min" in Finnish. */
+export const formatDuration = (ms: number, lang: Lang = 'en'): string => {
   const total = Math.max(0, Math.round(ms / 1000))
   const h = Math.floor(total / 3600)
   const m = Math.floor((total % 3600) / 60)
   const s = total % 60
+  if (lang === 'fi') {
+    if (h > 0) return `${h} h ${m} min`
+    if (m > 0) return `${m} min ${s} s`
+    return `${s} s`
+  }
   if (h > 0) return `${h}h ${m}m`
   if (m > 0) return `${m}m ${s}s`
   return `${s}s`
 }
+
+const STRINGS = {
+  en: {
+    done: 'Done',
+    took: 'took',
+    loading: 'Getting next steps…',
+    heading: 'Next steps (★ = recommended, pick one or more):',
+    send: 'Send selected',
+    close: 'Close',
+    doTheseNext: 'Do these next:',
+  },
+  fi: {
+    done: 'Valmis',
+    took: 'kesto',
+    loading: 'Haetaan seuraavia askeleita…',
+    heading: 'Seuraavat askeleet (★ = suositeltu, valitse yksi tai useampi):',
+    send: 'Lähetä valitut',
+    close: 'Sulje',
+    doTheseNext: 'Tee seuraavaksi nämä:',
+  },
+} as const
+
+type Strings = (typeof STRINGS)[Lang]
+
+/** The `language` option: "fi" for Finnish, anything else English. */
+export const langOf = (options: Readonly<Record<string, unknown>>): Lang => (options.language === 'fi' ? 'fi' : 'en')
 
 export type ParsedSteps = { steps: string[]; recommended: number[] }
 
@@ -78,7 +111,8 @@ Reply with only a JSON array of objects: [{"step": "...", "recommended": true}, 
 type Elements = Pick<ElementTable, 'Box' | 'Button' | 'Text'>
 
 /** The interactive summary: duration, selectable next steps, send and close. */
-const drawSummary = async ($: EngineInterface, ui: Elements, summary: Summary, withHotkeys: boolean) => {
+const drawSummary = async ($: EngineInterface, ui: Elements, summary: Summary, withHotkeys: boolean, lang: Lang) => {
+  const t: Strings = STRINGS[lang]
   const { Box, Button, Text } = ui
   const picked = await read($, selected)
   const steps = summary.steps
@@ -93,7 +127,7 @@ const drawSummary = async ($: EngineInterface, ui: Elements, summary: Summary, w
     const text =
       chosen.length === 1
         ? chosen[0]!
-        : `Do these next:\n${chosen.map((s, n) => `${n + 1}. ${s}`).join('\n')}`
+        : `${t.doTheseNext}\n${chosen.map((s, n) => `${n + 1}. ${s}`).join('\n')}`
     await update($, isHidden, () => true)
     await $.prompt.submit({ text, asUser: true })
   }
@@ -102,14 +136,14 @@ const drawSummary = async ($: EngineInterface, ui: Elements, summary: Summary, w
     <Box flexDirection="column">
       <Box>
         <Text color="green">✓ </Text>
-        <Text bold>Done</Text>
-        <Text dimColor> · took {formatDuration(summary.ms)}</Text>
+        <Text bold>{t.done}</Text>
+        <Text dimColor> · {t.took} {formatDuration(summary.ms, lang)}</Text>
       </Box>
       {steps === null ? (
-        <Text dimColor>Getting next steps…</Text>
+        <Text dimColor>{t.loading}</Text>
       ) : steps.length === 0 ? null : (
         <Box flexDirection="column">
-          <Text dimColor>Next steps (★ = recommended, pick one or more):</Text>
+          <Text dimColor>{t.heading}</Text>
           {steps.map((step, i) => (
             <Button
               key={`step-${i}`}
@@ -125,12 +159,12 @@ const drawSummary = async ($: EngineInterface, ui: Elements, summary: Summary, w
         {steps !== null && steps.length > 0 ? (
           <Button
             key="send"
-            label={picked.length > 0 ? `Send selected (${picked.length})` : 'Send selected'}
+            label={picked.length > 0 ? `${t.send} (${picked.length})` : t.send}
             variant="primary"
             onPress={send}
           />
         ) : null}
-        <Button key="dismiss" label="Close" onPress={() => update($, isHidden, () => true)} />
+        <Button key="dismiss" label={t.close} onPress={() => update($, isHidden, () => true)} />
       </Box>
     </Box>
   )
@@ -160,7 +194,8 @@ const generateSteps = async ($: EngineInterface, turnId: string, request: string
   await update($, selected, cur => (cur.length > 0 ? cur : parsed.recommended))
 }
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  const lang = langOf(options)
   let lastRequest = ''
 
   on('prompt.submit', async ($, e, next) => {
@@ -227,7 +262,7 @@ export const register: Register = on => {
     const isCurrent = summary !== null && summary.turnId === rowId && !(await read($, isHidden))
 
     if (isCurrent) {
-      return drawSummary($, ui, summary, false)
+      return drawSummary($, ui, summary, false, lang)
     }
 
     // An older row, or the latest once dealt with: the duration alone.
@@ -235,7 +270,7 @@ export const register: Register = on => {
     if (ms === undefined) return next(e)
     return (
       <ui.Box>
-        <ui.Text dimColor>✓ Done · took {formatDuration(ms)}</ui.Text>
+        <ui.Text dimColor>✓ {STRINGS[lang].done} · {STRINGS[lang].took} {formatDuration(ms, lang)}</ui.Text>
       </ui.Box>
     )
   })
@@ -251,6 +286,6 @@ export const register: Register = on => {
     ) {
       return next(e)
     }
-    return drawSummary($, $.ui.resolve(e), summary, true)
+    return drawSummary($, $.ui.resolve(e), summary, true, lang)
   })
 }

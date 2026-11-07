@@ -34,6 +34,16 @@ claude plugin install next-steps --marketplace taromorimoto/next-steps
 
 In the desktop app, where `/plugin` does not run: click + next to the prompt box, then Plugins, Add marketplace with `taromorimoto/next-steps`, then Add plugin.
 
+## Language
+
+The labels are English by default. For Finnish, set the `language` option to `fi`, either in the `/config` menu or from a shell:
+
+```
+echo '{"language":"fi"}' | claude plugin configure next-steps --values-stdin
+```
+
+The suggested steps always follow the language of your request.
+
 ## Where it shows
 
 - **Claude Code terminal and desktop app:** in the band right above the prompt box. Where a surface draws transcript rows, it goes under the answer instead.
