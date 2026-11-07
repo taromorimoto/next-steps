@@ -1,0 +1,13 @@
+{
+  "name": "next-steps",
+  "owner": {
+    "name": "taromorimoto"
+  },
+  "description": "Task duration and pickable next steps after every Claude Code task",
+  "plugins": [
+    {
+      "name": "next-steps",
+      "source": "./"
+    }
+  ]
+}
