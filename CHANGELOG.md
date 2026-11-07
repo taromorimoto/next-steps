@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1 – unreleased
+
+- More room between the step rows, and larger checkboxes where the surface sizes text (the desktop app).
+
 ## 0.5.0 – unreleased
 
 - The band leads with the session's goal (◎ Goal / Tavoite), read from the whole conversation by forking it, and kept stable from turn to turn unless the conversation clearly moves on.

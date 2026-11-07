@@ -220,17 +220,25 @@ const drawSummary = async ($: EngineInterface, ui: Elements, summary: Summary, w
       {steps === null ? (
         <Text dimColor>{t.loading}</Text>
       ) : steps.length === 0 ? null : (
-        <Box flexDirection="column">
+        <Box flexDirection="column" rowGap="sm">
           <Text dimColor>{t.heading}</Text>
-          {steps.map((step, i) => (
-            <Button
-              key={`step-${i}`}
-              label={`${picked.includes(i) ? '☑' : '☐'} ${recommended.includes(i) ? '★ ' : ''}${step}`}
-              hotkey={withHotkeys ? String(i + 1) : undefined}
-              plain
-              onPress={() => toggle(i)}
-            />
-          ))}
+          {steps.map((step, i) => {
+            const box = picked.includes(i) ? '☑' : '☐'
+            const text = `${recommended.includes(i) ? '★ ' : ''}${step}`
+            return (
+              <Button
+                key={`step-${i}`}
+                label={`${box} ${text}`}
+                hotkey={withHotkeys ? String(i + 1) : undefined}
+                plain
+                onPress={() => toggle(i)}
+              >
+                {/* A larger checkbox where the surface sizes text; the label alone elsewhere. */}
+                <Text size="heading">{box}</Text>
+                <Text> {text}</Text>
+              </Button>
+            )
+          })}
         </Box>
       )}
       <Box marginTop={1} columnGap={1}>
