@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0 – unreleased
+
+- `language` now defaults to `auto`: the labels follow the language of your request (Finnish or English), falling back to the system locale for very short prompts. `en` and `fi` still fix the language.
+
 ## 0.3.0 – 2026-11-07
 
 - New `language` setting: `en` (default) or `fi` for Finnish labels. Set it in the `/config` menu, or with `claude plugin configure next-steps@next-steps --values-stdin`.

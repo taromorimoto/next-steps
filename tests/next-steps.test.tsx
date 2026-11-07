@@ -19,7 +19,7 @@ const finishTurn = ($: any, over: Record<string, unknown> = {}) =>
     ...over,
   })
 
-test('a finished turn shows its duration and selectable next steps; the picked ones are sent', async ($, on) => {
+test('a finished turn shows its duration and selectable next steps; the picked ones are sent', { options: { language: 'en' } }, async ($, on) => {
   const clock = mock.clock(on)
   const submitted: string[] = []
   on('turn.complete', () => ({ text: '' }))
@@ -255,5 +255,36 @@ test('language "fi" draws the band in Finnish', { options: { language: 'fi' } },
   expect((await band.find({ type: 'Button', key: 'dismiss' }))?.props.label).toBe('Sulje')
   await band.press({ key: 'send' })
   expect(submitted.at(-1)).toBe('Tee seuraavaksi nämä:\n1. Aja testit\n2. Julkaise')
+  await band.unmount()
+})
+
+const autoTurn = async ($: any, on: any, request: string) => {
+  const clock = mock.clock(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('ui.place', () => ({ value: { isPlaced: false, reason: 'no attached surface draws placed rows yet' } }))
+  on('model.complete', () => ({ value: { isAnswered: true, text: '[{"step": "x", "recommended": true}]', usage: USAGE } }))
+  on('prompt.submit', (_: unknown, e: { text: string }) => ({ text: e.text }))
+  await $.prompt.submit({ text: request } as never)
+  await finishTurn($)
+  await clock.settle()
+  return $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
+}
+
+test('language "auto" (the default) follows a Finnish request', async ($, on) => {
+  const band = await autoTurn($, on, 'Voitko lisätä kirjautumisen ja testit')
+  expect((await band.find({ type: 'Button', key: 'dismiss' }))?.props.label).toBe('Sulje')
+  expect((await band.find({ type: 'Text', text: /kesto/ }))?.text).toBe(' · kesto 3 min 12 s')
+  await band.unmount()
+})
+
+test('language "auto" follows an English request', async ($, on) => {
+  const band = await autoTurn($, on, 'Please add login and tests')
+  expect((await band.find({ type: 'Button', key: 'dismiss' }))?.props.label).toBe('Close')
+  await band.unmount()
+})
+
+test('language "en" stays English for a Finnish request', { options: { language: 'en' } }, async ($, on) => {
+  const band = await autoTurn($, on, 'Voitko lisätä kirjautumisen')
+  expect((await band.find({ type: 'Button', key: 'dismiss' }))?.props.label).toBe('Close')
   await band.unmount()
 })

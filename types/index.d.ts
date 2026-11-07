@@ -11,6 +11,8 @@ export type Summary = {
   isPlaced: boolean
   /** What the steps are generated from (clipped), kept so a reload can finish an interrupted generation. */
   request?: string
+  /** The labels' language for this turn, as set or detected from the request. */
+  lang?: 'en' | 'fi'
   answer?: string
 }
 

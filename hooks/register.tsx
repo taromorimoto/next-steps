@@ -52,8 +52,29 @@ const STRINGS = {
 
 type Strings = (typeof STRINGS)[Lang]
 
-/** The `language` option: "fi" for Finnish, anything else English. */
-export const langOf = (options: Readonly<Record<string, unknown>>): Lang => (options.language === 'fi' ? 'fi' : 'en')
+export type LangSetting = Lang | 'auto'
+
+/** The `language` option: "en", "fi", or "auto" (the default, also for anything unknown). */
+export const langOf = (options: Readonly<Record<string, unknown>>): LangSetting =>
+  options.language === 'en' || options.language === 'fi' ? options.language : 'auto'
+
+const FINNISH_WORDS = new Set([
+  'ja', 'on', 'ei', 'se', 'että', 'kun', 'jos', 'eli', 'myös', 'niin', 'nyt', 'vielä', 'kanssa', 'tämä', 'tässä',
+  'tee', 'tehdä', 'voitko', 'voisitko', 'pystytkö', 'onko', 'mitä', 'miten', 'miksi', 'missä', 'mikä', 'ole',
+  'lisää', 'poista', 'tarkista', 'korjaa', 'muuta', 'kiitos', 'hei', 'joka', 'jotta', 'sitten', 'vain', 'koska',
+])
+
+/**
+ * Guesses the language of a prompt: Finnish on ä/ö or two common Finnish words,
+ * English on three or more other words, else the system locale (LC_ALL / LANG).
+ */
+export const detectLang = (text: string, locale?: string): Lang => {
+  const words = text.toLowerCase().match(/[a-zåäö]+/g) ?? []
+  if (/[äö]/i.test(text)) return 'fi'
+  if (words.filter(w => FINNISH_WORDS.has(w)).length >= 2) return 'fi'
+  if (words.length >= 3) return 'en'
+  return locale !== undefined && locale.toLowerCase().startsWith('fi') ? 'fi' : 'en'
+}
 
 export type ParsedSteps = { steps: string[]; recommended: number[] }
 
@@ -195,8 +216,12 @@ const generateSteps = async ($: EngineInterface, turnId: string, request: string
 }
 
 export const register: Register = (on, options) => {
-  const lang = langOf(options)
+  const setting = langOf(options)
   let lastRequest = ''
+  let locale: string | undefined
+  /** The labels' language for a turn: the setting, or on "auto" what the request was written in. */
+  const langFor = (summary: Summary | null): Lang =>
+    setting !== 'auto' ? setting : (summary?.lang ?? detectLang(summary?.request ?? '', locale))
 
   on('prompt.submit', async ($, e, next) => {
     lastRequest = e.text
@@ -208,6 +233,7 @@ export const register: Register = (on, options) => {
   // A reload drops a generation still under way: pick it up again.
   on('session.start', async ($, e, next) => {
     const result = await next(e)
+    locale = (await $.env.get('LC_ALL').catch(() => undefined)) || (await $.env.get('LANG').catch(() => undefined))
     const summary = await read($, last).catch(() => null)
     if (summary !== null && summary.steps === null) {
       if (summary.answer !== undefined) {
@@ -230,7 +256,8 @@ export const register: Register = (on, options) => {
     const turnId = e.turnId
     const request = clip(lastRequest, 4000)
     const answer = clip(e.answer, 8000)
-    await update($, last, () => ({ turnId, ms: e.durationMs, steps: null, isPlaced: false, request, answer }))
+    const lang = setting !== 'auto' ? setting : detectLang(lastRequest, locale)
+    await update($, last, () => ({ turnId, ms: e.durationMs, steps: null, isPlaced: false, request, answer, lang }))
     await update($, selected, () => [])
     await update($, isHidden, () => false)
     await update($, durations, cur => {
@@ -262,7 +289,7 @@ export const register: Register = (on, options) => {
     const isCurrent = summary !== null && summary.turnId === rowId && !(await read($, isHidden))
 
     if (isCurrent) {
-      return drawSummary($, ui, summary, false, lang)
+      return drawSummary($, ui, summary, false, langFor(summary))
     }
 
     // An older row, or the latest once dealt with: the duration alone.
@@ -270,7 +297,7 @@ export const register: Register = (on, options) => {
     if (ms === undefined) return next(e)
     return (
       <ui.Box>
-        <ui.Text dimColor>✓ {STRINGS[lang].done} · {STRINGS[lang].took} {formatDuration(ms, lang)}</ui.Text>
+        <ui.Text dimColor>✓ {STRINGS[langFor(summary)].done} · {STRINGS[langFor(summary)].took} {formatDuration(ms, langFor(summary))}</ui.Text>
       </ui.Box>
     )
   })
@@ -286,6 +313,6 @@ export const register: Register = (on, options) => {
     ) {
       return next(e)
     }
-    return drawSummary($, $.ui.resolve(e), summary, true, lang)
+    return drawSummary($, $.ui.resolve(e), summary, true, langFor(summary))
   })
 }
