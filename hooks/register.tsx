@@ -7,6 +7,7 @@ const last = atom({ plugin: 'next-steps', key: 'last' } as const, null)
 const selected = atom({ plugin: 'next-steps', key: 'selected' } as const, [])
 const isHidden = atom({ plugin: 'next-steps', key: 'isHidden' } as const, true)
 const durations = atom({ plugin: 'next-steps', key: 'durations' } as const, {})
+const goal = atom({ plugin: 'next-steps', key: 'goal' } as const, null)
 
 const MAX_ROWS = 200
 const MAX_STEPS = 5
@@ -31,6 +32,7 @@ export const formatDuration = (ms: number, lang: Lang = 'en'): string => {
 
 const STRINGS = {
   en: {
+    goal: 'Goal',
     done: 'Done',
     took: 'took',
     loading: 'Getting next steps…',
@@ -40,6 +42,7 @@ const STRINGS = {
     doTheseNext: 'Do these next:',
   },
   fi: {
+    goal: 'Tavoite',
     done: 'Valmis',
     took: 'kesto',
     loading: 'Haetaan seuraavia askeleita…',
@@ -110,10 +113,54 @@ export const parseSteps = (text: string): ParsedSteps => {
   }
 }
 
+export type Suggestion = ParsedSteps & { goal: string | null }
+
+/**
+ * Pulls `{ "goal": "...", "steps": [...] }` out of a model reply; a bare steps
+ * array (no goal) is taken too.
+ */
+export const parseSuggestion = (text: string): Suggestion => {
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start >= 0 && end > start && (text.indexOf('[') < 0 || start < text.indexOf('['))) {
+    try {
+      const parsed: unknown = JSON.parse(text.slice(start, end + 1))
+      if (parsed !== null && typeof parsed === 'object' && Array.isArray((parsed as { steps?: unknown }).steps)) {
+        const o = parsed as { goal?: unknown; steps: unknown[] }
+        const goalText = typeof o.goal === 'string' && o.goal.trim().length > 0 ? o.goal.trim() : null
+        return { goal: goalText, ...parseSteps(JSON.stringify(o.steps)) }
+      }
+    } catch {
+      // Fall through to a bare array.
+    }
+  }
+  return { goal: null, ...parseSteps(text) }
+}
+
 const clip = (text: string, max: number) =>
   text.length <= max ? text : `${text.slice(0, max / 2)}\n…\n${text.slice(-max / 2)}`
 
-const stepsPrompt = (request: string, answer: string) => `A coding assistant just finished a task.
+const goalLine = (previousGoal: string | null) =>
+  previousGoal === null
+    ? ''
+    : `The goal noted so far: "${previousGoal}". Keep it, word for word, unless the conversation has clearly moved on to something else.`
+
+const ASK = `Mark as recommended the steps you would advise doing next (at least one, usually one to three); leave optional or speculative ones unmarked.
+
+Reply with only JSON: {"goal": "...", "steps": [{"step": "...", "recommended": true}, ...]}`
+
+/** Asked of a fork of the session's own transcript: it knows the whole conversation. */
+const forkPrompt = (previousGoal: string | null) => `Step outside the conversation for a moment: do not continue the work, call no tools, and do not address the user.
+
+1. In one short sentence (max ~15 words), state the overall goal of this whole session: what the user is ultimately trying to achieve, not just their last message. ${goalLine(previousGoal)}
+2. Suggest 3 to ${MAX_STEPS} concrete next steps the user might want the assistant to do next, each one short imperative sentence (max ~12 words), each one moving toward that goal. Do not suggest what is already done.
+
+Write the goal and the steps in the language the user writes in.
+
+${ASK}`
+
+/** The fallback when there is no transcript to fork: the last request and answer alone. */
+const stepsPrompt = (request: string, answer: string, previousGoal: string | null) => `A coding assistant just finished a task.
 
 <request>
 ${clip(request, 4000)}
@@ -123,11 +170,12 @@ ${clip(request, 4000)}
 ${clip(answer, 8000)}
 </final_answer>
 
-Suggest 3 to ${MAX_STEPS} concrete next steps the user might want the assistant to do next. Each step is one short imperative sentence (max ~12 words), specific to this task, in the same language as the request. Do not suggest things the answer says are already done.
+1. In one short sentence (max ~15 words), state the overall goal the user is working toward. ${goalLine(previousGoal)}
+2. Suggest 3 to ${MAX_STEPS} concrete next steps the user might want the assistant to do next, each one short imperative sentence (max ~12 words), each one moving toward that goal. Do not suggest things the answer says are already done.
 
-Mark as recommended the steps you would advise doing next (at least one, usually one to three); leave optional or speculative ones unmarked.
+Write the goal and the steps in the same language as the request.
 
-Reply with only a JSON array of objects: [{"step": "...", "recommended": true}, ...]`
+${ASK}`
 
 type Elements = Pick<ElementTable, 'Box' | 'Button' | 'Text'>
 
@@ -153,8 +201,17 @@ const drawSummary = async ($: EngineInterface, ui: Elements, summary: Summary, w
     await $.prompt.submit({ text, asUser: true })
   }
 
+  const sessionGoal = summary.goal ?? (await read($, goal))
+
   return (
     <Box flexDirection="column">
+      {sessionGoal !== null ? (
+        <Box marginBottom={1}>
+          <Text color="cyan">◎ </Text>
+          <Text bold>{t.goal}: </Text>
+          <Text>{sessionGoal}</Text>
+        </Box>
+      ) : null}
       <Box>
         <Text color="green">✓ </Text>
         <Text bold>{t.done}</Text>
@@ -193,24 +250,48 @@ const drawSummary = async ($: EngineInterface, ui: Elements, summary: Summary, w
 
 const STEPS_TIMEOUT_MS = 90_000
 
-/** Generates the steps for one turn and stores them; never leaves the summary stuck loading. */
+const NONE: Suggestion = { goal: null, steps: [], recommended: [] }
+
+/**
+ * Finds the session's goal and goal-aligned steps for one turn and stores them:
+ * first from a fork of the whole conversation, else from the last request and
+ * answer. Never leaves the summary stuck loading.
+ */
 const generateSteps = async ($: EngineInterface, turnId: string, request: string, answer: string) => {
-  let parsed: ParsedSteps = { steps: [], recommended: [] }
+  const previousGoal = await read($, goal).catch(() => null)
+  let parsed: Suggestion = NONE
+
   try {
-    const reply = await $.model.complete({
-      model: 'opus',
-      prompt: stepsPrompt(request, answer),
-      effort: 'low',
-      maxTokens: 1024,
-      timeoutMs: STEPS_TIMEOUT_MS,
-    })
-    if (reply.isAnswered) parsed = parseSteps(reply.text)
+    const timedOut = $.clock.sleep(STEPS_TIMEOUT_MS).then(() => null)
+    const forked = await Promise.race([$.model.fork({ prompt: forkPrompt(previousGoal) }), timedOut])
+    if (forked !== null && forked.isAnswered) parsed = parseSuggestion(forked.text)
   } catch {
-    // A refused call shows the duration alone.
+    // No fork: fall back below.
   }
+
+  if (parsed.steps.length === 0) {
+    try {
+      const reply = await $.model.complete({
+        model: 'opus',
+        prompt: stepsPrompt(request, answer, previousGoal),
+        effort: 'low',
+        maxTokens: 1024,
+        timeoutMs: STEPS_TIMEOUT_MS,
+      })
+      if (reply.isAnswered) parsed = parseSuggestion(reply.text)
+    } catch {
+      // A refused call shows the duration alone.
+    }
+  }
+
   const current = await read($, last)
   if (current === null || current.turnId !== turnId) return
-  await update($, last, cur => (cur !== null && cur.turnId === turnId ? { ...cur, steps: parsed.steps, recommended: parsed.recommended } : cur))
+  if (parsed.goal !== null) await update($, goal, () => parsed.goal)
+  await update($, last, cur =>
+    cur !== null && cur.turnId === turnId
+      ? { ...cur, steps: parsed.steps, recommended: parsed.recommended, goal: parsed.goal ?? cur.goal }
+      : cur,
+  )
   // The recommended steps start checked, unless the person already picked some.
   await update($, selected, cur => (cur.length > 0 ? cur : parsed.recommended))
 }

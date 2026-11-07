@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0 – unreleased
+
+- The band leads with the session's goal (◎ Goal / Tavoite), read from the whole conversation by forking it, and kept stable from turn to turn unless the conversation clearly moves on.
+- Suggested steps are chosen to move toward that goal.
+- Falls back to the last request and answer when there is nothing to fork or the fork takes over 90 s.
+
 ## 0.4.0 – unreleased
 
 - `language` now defaults to `auto`: the labels follow the language of your request (Finnish or English), falling back to the system locale for very short prompts. `en` and `fi` still fix the language.

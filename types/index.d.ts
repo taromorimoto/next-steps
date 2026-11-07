@@ -13,6 +13,8 @@ export type Summary = {
   request?: string
   /** The labels' language for this turn, as set or detected from the request. */
   lang?: 'en' | 'fi'
+  /** The session's goal as found for this turn. */
+  goal?: string | null
   answer?: string
 }
 
@@ -26,6 +28,8 @@ declare module 'claude-code' {
       isHidden: boolean
       /** Duration of every turn that placed a row, by turn id, so older rows keep theirs. */
       durations: Readonly<Record<string, number>>
+      /** The session's goal as last found; kept from turn to turn so it stays stable. */
+      goal: string | null
     }
   }
 }

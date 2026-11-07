@@ -288,3 +288,55 @@ test('language "en" stays English for a Finnish request', { options: { language:
   expect((await band.find({ type: 'Button', key: 'dismiss' }))?.props.label).toBe('Close')
   await band.unmount()
 })
+
+test('the band leads with the session goal from a fork of the conversation', { options: { language: 'en' } }, async ($, on) => {
+  const clock = mock.clock(on)
+  const forkPrompts: string[] = []
+  on('turn.complete', () => ({ text: '' }))
+  on('ui.place', () => ({ value: { isPlaced: false, reason: 'no attached surface draws placed rows yet' } }))
+  on('model.fork', (_, e) => {
+    forkPrompts.push(e.prompt)
+    return {
+      value: {
+        isAnswered: true,
+        text: '{"goal": "Ship a next-steps mod for Claude Code", "steps": [{"step": "Release 0.5.0", "recommended": true}]}',
+        usage: USAGE,
+      },
+    }
+  })
+  on('model.complete', () => ({ deny: 'the fork answered; no fallback expected' }))
+
+  await finishTurn($, { turnId: 'a' })
+  await clock.settle()
+
+  const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
+  expect((await band.find({ type: 'Text', text: /Ship a next-steps mod/ }))?.text).toBe('Ship a next-steps mod for Claude Code')
+  expect((await band.find({ type: 'Text', text: /Goal/ }))?.text).toBe('Goal: ')
+  expect((await band.find({ type: 'Button', key: 'step-0' }))?.props.label).toBe('☑ ★ Release 0.5.0')
+  await band.unmount()
+
+  // The next turn asks with the goal found so far, so it stays stable.
+  await finishTurn($, { turnId: 'b' })
+  await clock.settle()
+  expect(forkPrompts[0]).not.toContain('The goal noted so far')
+  expect(forkPrompts[1]).toContain('The goal noted so far: "Ship a next-steps mod for Claude Code"')
+})
+
+test('with nothing to fork, the last request and answer give the goal and steps', { options: { language: 'fi' } }, async ($, on) => {
+  const clock = mock.clock(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('ui.place', () => ({ value: { isPlaced: false, reason: 'no attached surface draws placed rows yet' } }))
+  on('model.fork', () => ({ value: { isAnswered: false, reason: 'nothing-to-fork', usage: USAGE } }))
+  on('model.complete', () => ({
+    value: { isAnswered: true, text: '{"goal": "Kauppalista-sovellus valmiiksi", "steps": [{"step": "Lisää jakaminen", "recommended": true}]}', usage: USAGE },
+  }))
+
+  await finishTurn($)
+  await clock.settle()
+
+  const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
+  expect((await band.find({ type: 'Text', text: /Tavoite/ }))?.text).toBe('Tavoite: ')
+  expect((await band.find({ type: 'Text', text: /Kauppalista/ }))?.text).toBe('Kauppalista-sovellus valmiiksi')
+  expect((await band.find({ type: 'Button', key: 'step-0' }))?.props.label).toBe('☑ ★ Lisää jakaminen')
+  await band.unmount()
+})

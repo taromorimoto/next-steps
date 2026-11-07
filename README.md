@@ -2,10 +2,12 @@
 
 A Claude Code mod that shows, every time Claude finishes a task:
 
+- **the goal of the session**, as Opus reads it from the whole conversation, kept stable from task to task,
 - **how long the task took**, start to finish, and
-- **3–5 suggested next steps**, written by Opus from your request and Claude's answer. The steps Opus recommends are starred (★) and already checked. Pick any combination and press **Send selected** to send them as your next prompt.
+- **3–5 suggested next steps** that move toward that goal. The steps Opus recommends are starred (★) and already checked. Pick any combination and press **Send selected** to send them as your next prompt.
 
 ```
+◎ Goal: Ship a login flow with tests
 ✓ Done · took 3m 12s
 Next steps (★ = recommended, pick one or more):
 ☑ ★ Run the tests in CI
@@ -52,7 +54,7 @@ The suggested steps always follow the language of your request.
 
 ## Cost
 
-Each finished task makes one extra Opus call (low effort, up to 1024 output tokens) to write the suggestions.
+Each finished task makes one extra model call: a fork of the session's own conversation, so the goal and steps see everything said so far. It runs on the session's model and reuses the prompt cache the session just warmed; with nothing to fork it falls back to one Opus call (low effort) over your last request and Claude's answer.
 
 ## License
 
