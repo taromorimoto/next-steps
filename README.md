@@ -2,16 +2,15 @@
 
 A Claude Code mod that shows, every time Claude finishes a task:
 
-- **the goal of the session**, as Opus reads it from the whole conversation, kept stable from task to task,
-- **how long the task took**, start to finish, and
+- **the goal of the session**, as Opus reads it from the whole conversation, kept stable from task to task, and
 - **3–5 suggested next steps** that move toward that goal. The steps Opus recommends are starred (★) and already checked. Pick any combination and press **Send selected** to send them as your next prompt.
 
 ```
-◎ Ship a login flow with tests          3m 12s  [ Send selected (2) ]  [ Close ]
+◎ Ship a login flow with tests                 [ Send selected (2) ]  [ Close ]
 
-☑  Run the tests in CI  ★
+☑  ★ Run the tests in CI
 ☐  Update the README
-☑  Add logout  ★
+☑  ★ Add logout
 ```
 
 The suggested steps follow the language of your request.

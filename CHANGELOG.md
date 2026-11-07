@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.0 – unreleased
+
+- The band no longer shows the task's duration.
+- The recommended star sits at the start of the step, right after the checkbox.
+- When no goal or steps could be found, the band stays hidden instead of showing a lone Close button.
+
 ## 0.6.1 – unreleased
 
 - The duration moves beside the buttons as a compact dim time; the separate "Done" row is gone.

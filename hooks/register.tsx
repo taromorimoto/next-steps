@@ -222,10 +222,6 @@ const drawSummary = async (
           ) : null}
         </Box>
         <Box flexDirection="row" columnGap={1} flexShrink={0} alignItems="center">
-          {/* The task's duration, compact, beside the buttons: no row of its own. */}
-          <Text dimColor size="footnote">
-            {formatDuration(summary.ms, lang)}
-          </Text>
           {steps !== null && steps.length > 0 ? (
             <Button
               key="send"
@@ -248,17 +244,17 @@ const drawSummary = async (
             return (
               <Button
                 key={`step-${i}`}
-                label={`${box} ${step}${isRecommended ? ' ★' : ''}`}
+                label={`${box} ${isRecommended ? '★ ' : ''}${step}`}
                 hotkey={withHotkeys ? String(i + 1) : undefined}
                 plain
                 onPress={() => toggle(i)}
               >
-                {/* Where the surface draws children: a larger, colored box, the step dim until picked, the star last. */}
+                {/* Where the surface draws children: a larger, colored box, the star, the step dim until picked. */}
                 <Text size="title" color={isPicked ? 'success' : 'inactive'}>
                   {box}
                 </Text>
-                <Text dimColor={!isPicked}>{`  ${step}`}</Text>
                 {isRecommended ? <Text color="warning">{'  ★'}</Text> : null}
+                <Text dimColor={!isPicked}>{`  ${step}`}</Text>
               </Button>
             )
           })}
@@ -413,6 +409,10 @@ export const register: Register = (on, options) => {
       summary.isPlaced ||
       (await read($, isHidden))
     ) {
+      return next(e)
+    }
+    // With no steps and no goal (the suggestion call failed) there is nothing to show.
+    if (summary.steps !== null && summary.steps.length === 0 && (summary.goal ?? (await read($, goal))) === null) {
       return next(e)
     }
     return drawSummary($, $.ui.resolve(e), summary, e.surface === 'terminal', langFor(summary), e.props.maxRows)

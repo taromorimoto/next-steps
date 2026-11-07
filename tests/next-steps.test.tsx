@@ -41,7 +41,7 @@ test('a finished turn shows its duration and selectable next steps; the picked o
   await clock.settle()
 
   const ui = await $.ui.mount({ ...row('t1'), surface: 'desktop' })
-  expect((await ui.find({ type: 'Text', text: /^[0-9]/ }))?.text).toBe('3m 12s')
+  expect(await ui.find({ type: 'Text', text: /^[0-9]/ })).toBeUndefined()
   expect((await ui.find({ type: 'Button', key: 'step-0' }))?.props.label).toBe('☐ Lisää uloskirjautuminen')
 
   await ui.press({ key: 'step-0' })
@@ -75,7 +75,7 @@ test('a subagent turn and an interrupted turn show nothing', async ($, on) => {
   await ui.unmount()
 })
 
-test('a failed suggestion call still shows the duration', async ($, on) => {
+test('a failed suggestion call leaves no empty band', async ($, on) => {
   const clock = mock.clock(on)
   on('turn.complete', () => ({ text: '' }))
   on('ui.place', (_, e) => ({ value: { isPlaced: true, requestId: e.id } }))
@@ -85,7 +85,7 @@ test('a failed suggestion call still shows the duration', async ($, on) => {
   await clock.settle()
 
   const ui = await $.ui.mount({ ...row('t1'), surface: 'terminal' })
-  expect((await ui.find({ type: 'Text', text: /^[0-9]/ }))?.text).toBe('45s')
+  expect(await ui.find({ type: 'Text', text: /^[0-9]/ })).toBeUndefined()
   expect(await ui.find({ type: 'Button', key: 'send' })).toBeUndefined()
   await ui.unmount()
 })
@@ -106,7 +106,7 @@ test('an older row keeps its duration once a newer turn finished', async ($, on)
   await old.unmount()
 
   const fresh = await $.ui.mount({ ...row('new'), surface: 'desktop' })
-  expect((await fresh.find({ type: 'Text', text: /^[0-9]/ }))?.text).toBe('1m 5s')
+  expect(await fresh.find({ type: 'Text', text: /^[0-9]/ })).toBeUndefined()
   expect(await fresh.find({ type: 'Button', key: 'step-0' })).toBeDefined()
   await fresh.unmount()
 })
@@ -126,7 +126,7 @@ test('where no surface draws placed rows, the band above the prompt shows the su
     surface: 'desktop',
     props: { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns: 80, scroll: { offset: 0, bodyRows: 20 }, view: {} },
   })
-  expect((await band.find({ type: 'Text', text: /^[0-9]/ }))?.text).toBe('12s')
+  expect(await band.find({ type: 'Text', text: /^[0-9]/ })).toBeUndefined()
   expect((await band.find({ type: 'Button', key: 'step-0' }))?.props.label).toBe('☐ Aja testit')
   await band.unmount()
 })
@@ -156,18 +156,22 @@ test('where the row is placed, the band stays empty', async ($, on) => {
 
 const BAND_PROPS = { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns: 80, scroll: { offset: 0, bodyRows: 20 }, view: {} }
 
-test('a model call that rejects leaves the duration, not a stuck loading line', async ($, on) => {
+test('a model call that rejects leaves no stuck loading line', async ($, on) => {
   const clock = mock.clock(on)
   on('turn.complete', () => ({ text: '' }))
   on('ui.place', () => ({ value: { isPlaced: false, reason: 'no attached surface draws placed rows yet' } }))
   on('model.complete', () => ({ deny: 'model blocked' }))
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine</Text>
+  })
 
   await finishTurn($, { durationMs: 97_000 })
   await clock.settle()
 
+  // Nothing found: the band is left to the engine, with no loading line stuck in it.
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
-  expect((await band.find({ type: 'Text', text: /^[0-9]/ }))?.text).toBe('1m 37s')
-  expect(await band.find({ type: 'Text', text: /Getting next steps/ })).toBeUndefined()
+  expect((await band.find({ type: 'Text' }))?.text).toBe('engine')
   await band.unmount()
 })
 
@@ -204,7 +208,7 @@ test('a reload during generation picks the generation up again, recommended step
 
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
   // The recommended step comes back checked and starred after the reload too.
-  expect((await band.find({ type: 'Button', key: 'step-0' }))?.props.label).toBe('☑ Testaa palkki ★')
+  expect((await band.find({ type: 'Button', key: 'step-0' }))?.props.label).toBe('☑ ★ Testaa palkki')
   expect((await band.find({ type: 'Button', key: 'step-1' }))?.props.label).toBe('☐ Siisti koodi')
   expect((await band.find({ type: 'Button', key: 'send' }))?.props.label).toBe('Send selected (1)')
   await band.unmount()
@@ -226,9 +230,9 @@ test('the steps the model recommends start checked', async ($, on) => {
   await clock.settle()
 
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
-  expect((await band.find({ type: 'Button', key: 'step-0' }))?.props.label).toBe('☑ Aja testit ★')
+  expect((await band.find({ type: 'Button', key: 'step-0' }))?.props.label).toBe('☑ ★ Aja testit')
   expect((await band.find({ type: 'Button', key: 'step-1' }))?.props.label).toBe('☐ Päivitä README')
-  expect((await band.find({ type: 'Button', key: 'step-2' }))?.props.label).toBe('☑ Julkaise ★')
+  expect((await band.find({ type: 'Button', key: 'step-2' }))?.props.label).toBe('☑ ★ Julkaise')
   expect((await band.find({ type: 'Button', key: 'send' }))?.props.label).toBe('Send selected (2)')
   await band.unmount()
 })
@@ -250,7 +254,7 @@ test('language "fi" draws the band in Finnish', { options: { language: 'fi' } },
   await clock.settle()
 
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
-  expect((await band.find({ type: 'Text', text: /^[0-9]/ }))?.text).toBe('3 min 12 s')
+  expect(await band.find({ type: 'Text', text: /^[0-9]/ })).toBeUndefined()
   expect((await band.find({ type: 'Button', key: 'send' }))?.props.label).toBe('Lähetä valitut (2)')
   expect((await band.find({ type: 'Button', key: 'dismiss' }))?.props.label).toBe('Sulje')
   await band.press({ key: 'send' })
@@ -273,7 +277,7 @@ const autoTurn = async ($: any, on: any, request: string) => {
 test('language "auto" (the default) follows a Finnish request', async ($, on) => {
   const band = await autoTurn($, on, 'Voitko lisätä kirjautumisen ja testit')
   expect((await band.find({ type: 'Button', key: 'dismiss' }))?.props.label).toBe('Sulje')
-  expect((await band.find({ type: 'Text', text: /^[0-9]/ }))?.text).toBe('3 min 12 s')
+  expect(await band.find({ type: 'Text', text: /^[0-9]/ })).toBeUndefined()
   await band.unmount()
 })
 
@@ -311,7 +315,7 @@ test('the band leads with the session goal from a fork of the conversation', { o
 
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
   expect((await band.find({ type: 'Text', text: /Ship a next-steps mod/ }))?.text).toBe('◎ Ship a next-steps mod for Claude Code')
-  expect((await band.find({ type: 'Button', key: 'step-0' }))?.props.label).toBe('☑ Release 0.5.0 ★')
+  expect((await band.find({ type: 'Button', key: 'step-0' }))?.props.label).toBe('☑ ★ Release 0.5.0')
   await band.unmount()
 
   // The next turn asks with the goal found so far, so it stays stable.
@@ -335,6 +339,6 @@ test('with nothing to fork, the last request and answer give the goal and steps'
 
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
   expect((await band.find({ type: 'Text', text: /Kauppalista/ }))?.text).toBe('◎ Kauppalista-sovellus valmiiksi')
-  expect((await band.find({ type: 'Button', key: 'step-0' }))?.props.label).toBe('☑ Lisää jakaminen ★')
+  expect((await band.find({ type: 'Button', key: 'step-0' }))?.props.label).toBe('☑ ★ Lisää jakaminen')
   await band.unmount()
 })
