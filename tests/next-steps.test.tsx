@@ -7,6 +7,20 @@ const row = (id: string) =>
     props: { id, plugin: 'next-steps' },
   }) as const
 
+/** A step as the band draws it: ☑ for a picked checkbox button, ☐ otherwise, then the row's text. */
+const stepRow = async (ui: any, i: number) => {
+  const box = await ui.find({ type: 'Button', key: `step-${i}` })
+  const find = (node: any): any =>
+    node === null || typeof node !== 'object'
+      ? undefined
+      : node.props?.key === `row-${i}`
+        ? node
+        : (node.children ?? []).map(find).find((x: any) => x !== undefined)
+  const textOf = (node: any): string =>
+    typeof node === 'string' ? node : node?.type === 'Button' ? '' : (node?.children ?? []).map(textOf).join('')
+  return `${box?.props.variant === 'primary' ? '☑' : '☐'} ${textOf(find(await ui.drawn()))}`
+}
+
 const USAGE = { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
 
 const finishTurn = ($: any, over: Record<string, unknown> = {}) =>
@@ -42,11 +56,11 @@ test('a finished turn shows its duration and selectable next steps; the picked o
 
   const ui = await $.ui.mount({ ...row('t1'), surface: 'desktop' })
   expect(await ui.find({ type: 'Text', text: /^[0-9]/ })).toBeUndefined()
-  expect((await ui.find({ type: 'Button', key: 'step-0' }))?.props.label).toBe('☐ Lisää uloskirjautuminen')
+  expect(await stepRow(ui, 0)).toBe('☐ Lisää uloskirjautuminen')
 
   await ui.press({ key: 'step-0' })
   await ui.press({ key: 'step-2' })
-  expect((await ui.find({ type: 'Button', key: 'step-2' }))?.props.label).toBe('☑ Aja testit CI:ssä')
+  expect(await stepRow(ui, 2)).toBe('☑ Aja testit CI:ssä')
   expect((await ui.find({ type: 'Button', key: 'send' }))?.props.label).toBe('Send selected (2)')
 
   await ui.press({ key: 'send' })
@@ -127,7 +141,7 @@ test('where no surface draws placed rows, the band above the prompt shows the su
     props: { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns: 80, scroll: { offset: 0, bodyRows: 20 }, view: {} },
   })
   expect(await band.find({ type: 'Text', text: /^[0-9]/ })).toBeUndefined()
-  expect((await band.find({ type: 'Button', key: 'step-0' }))?.props.label).toBe('☐ Aja testit')
+  expect(await stepRow(band, 0)).toBe('☐ Aja testit')
   await band.unmount()
 })
 
@@ -208,8 +222,8 @@ test('a reload during generation picks the generation up again, recommended step
 
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
   // The recommended step comes back checked and starred after the reload too.
-  expect((await band.find({ type: 'Button', key: 'step-0' }))?.props.label).toBe('☑ ★ Testaa palkki')
-  expect((await band.find({ type: 'Button', key: 'step-1' }))?.props.label).toBe('☐ Siisti koodi')
+  expect(await stepRow(band, 0)).toBe('☑ ★ Testaa palkki')
+  expect(await stepRow(band, 1)).toBe('☐ Siisti koodi')
   expect((await band.find({ type: 'Button', key: 'send' }))?.props.label).toBe('Send selected (1)')
   await band.unmount()
 })
@@ -230,9 +244,9 @@ test('the steps the model recommends start checked', async ($, on) => {
   await clock.settle()
 
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
-  expect((await band.find({ type: 'Button', key: 'step-0' }))?.props.label).toBe('☑ ★ Aja testit')
-  expect((await band.find({ type: 'Button', key: 'step-1' }))?.props.label).toBe('☐ Päivitä README')
-  expect((await band.find({ type: 'Button', key: 'step-2' }))?.props.label).toBe('☑ ★ Julkaise')
+  expect(await stepRow(band, 0)).toBe('☑ ★ Aja testit')
+  expect(await stepRow(band, 1)).toBe('☐ Päivitä README')
+  expect(await stepRow(band, 2)).toBe('☑ ★ Julkaise')
   expect((await band.find({ type: 'Button', key: 'send' }))?.props.label).toBe('Send selected (2)')
   await band.unmount()
 })
@@ -315,7 +329,7 @@ test('the band leads with the session goal from a fork of the conversation', { o
 
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
   expect((await band.find({ type: 'Text', text: /Ship a next-steps mod/ }))?.text).toBe('◎ Ship a next-steps mod for Claude Code')
-  expect((await band.find({ type: 'Button', key: 'step-0' }))?.props.label).toBe('☑ ★ Release 0.5.0')
+  expect(await stepRow(band, 0)).toBe('☑ ★ Release 0.5.0')
   await band.unmount()
 
   // The next turn asks with the goal found so far, so it stays stable.
@@ -339,6 +353,45 @@ test('with nothing to fork, the last request and answer give the goal and steps'
 
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
   expect((await band.find({ type: 'Text', text: /Kauppalista/ }))?.text).toBe('◎ Kauppalista-sovellus valmiiksi')
-  expect((await band.find({ type: 'Button', key: 'step-0' }))?.props.label).toBe('☑ ★ Lisää jakaminen')
+  expect(await stepRow(band, 0)).toBe('☑ ★ Lisää jakaminen')
   await band.unmount()
+})
+
+test('a narrow band puts the buttons above the goal; a wide one beside it', { options: { language: 'en' } }, async ($, on) => {
+  const clock = mock.clock(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('ui.place', () => ({ value: { isPlaced: false, reason: 'no attached surface draws placed rows yet' } }))
+  on('model.fork', () => ({
+    value: { isAnswered: true, text: '{"goal": "A long goal that would wrap in a narrow column", "steps": [{"step": "One", "recommended": true}]}', usage: USAGE },
+  }))
+
+  await finishTurn($)
+  await clock.settle()
+
+  const narrow = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: { ...BAND_PROPS, bodyColumns: 50 } })
+  const narrowTree = JSON.stringify(await narrow.drawn())
+  expect(narrowTree.indexOf('Send selected')).toBeLessThan(narrowTree.indexOf('A long goal'))
+  await narrow.unmount()
+
+  const wide = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: { ...BAND_PROPS, bodyColumns: 140 } })
+  const wideTree = JSON.stringify(await wide.drawn())
+  expect(wideTree.indexOf('A long goal')).toBeLessThan(wideTree.indexOf('Send selected'))
+  await wide.unmount()
+})
+
+test('the step rows draw on every surface, with hotkeys on the terminal alone', { options: { language: 'en' } }, async ($, on) => {
+  const clock = mock.clock(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('ui.place', () => ({ value: { isPlaced: false, reason: 'no attached surface draws placed rows yet' } }))
+  on('model.fork', () => ({ value: { isAnswered: true, text: '{"goal": "G", "steps": [{"step": "One", "recommended": true}]}', usage: USAGE } }))
+
+  await finishTurn($)
+  await clock.settle()
+
+  for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
+    const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface, props: BAND_PROPS })
+    expect(await stepRow(band, 0)).toBe('☑ ★ One')
+    expect((await band.find({ type: 'Button', key: 'step-0' }))?.props.hotkey).toBe(surface === 'terminal' ? '1' : undefined)
+    await band.unmount()
+  }
 })

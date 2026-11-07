@@ -8,9 +8,9 @@ A Claude Code mod that shows, every time Claude finishes a task:
 ```
 ◎ Ship a login flow with tests                 [ Send selected (2) ]  [ Close ]
 
-☑  ★ Run the tests in CI
-☐  Update the README
-☑  ★ Add logout
+[✓] ★ Run the tests in CI
+[ ] Update the README
+[✓] ★ Add logout
 ```
 
 The suggested steps follow the language of your request.

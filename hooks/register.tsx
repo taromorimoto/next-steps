@@ -176,6 +176,13 @@ ${ASK}`
 
 type Elements = Pick<ElementTable, 'Box' | 'Button' | 'Text'>
 
+/** Below this many columns the buttons go on a row of their own, above the goal. */
+const NARROW_COLUMNS = 80
+/** About how many columns the Send and Close buttons take beside the goal. */
+const BUTTONS_COLUMNS = 34
+/** About how many columns the checkbox button takes before a step's text. */
+const STEP_INDENT = 6
+
 /** The interactive summary: duration, selectable next steps, send and close. */
 const drawSummary = async (
   $: EngineInterface,
@@ -184,6 +191,7 @@ const drawSummary = async (
   withHotkeys: boolean,
   lang: Lang,
   maxRows?: number,
+  columns?: number,
 ) => {
   const t: Strings = STRINGS[lang]
   const { Box, Button, Text } = ui
@@ -206,56 +214,82 @@ const drawSummary = async (
   }
 
   const sessionGoal = summary.goal ?? (await read($, goal))
-  const stepCount = steps?.length ?? 0
+  const stepList = steps ?? []
+
+  // Lay out for the width at hand: beside the goal when there is room for the
+  // buttons, else the buttons on a row of their own above it, so the goal gets
+  // the full width instead of a narrow column.
+  const cols = columns ?? 120
+  const isNarrow = cols < NARROW_COLUMNS
+  const goalLen = (sessionGoal?.length ?? 0) + 2
+  const goalRows = sessionGoal === null ? 1 : isNarrow ? 1 + Math.ceil(goalLen / cols) : Math.max(1, Math.ceil(goalLen / Math.max(20, cols - BUTTONS_COLUMNS)))
+  const stepRows = stepList.reduce((n, step) => n + Math.ceil((step.length + STEP_INDENT) / Math.max(20, cols - STEP_INDENT)), 0)
   // Room between the rows only while the whole band still fits without scrolling.
-  const roomy = maxRows === undefined || 1 + 2 * stepCount <= maxRows
+  const roomy = maxRows === undefined || goalRows + stepRows + stepList.length + 1 <= maxRows
+
+  const buttons = (
+    <Box flexDirection="row" columnGap={1} flexShrink={0} justifyContent="flex-end">
+      {stepList.length > 0 ? (
+        <Button
+          key="send"
+          label={picked.length > 0 ? `${t.send} (${picked.length})` : t.send}
+          variant="primary"
+          onPress={send}
+        />
+      ) : null}
+      <Button key="dismiss" label={t.close} onPress={() => update($, isHidden, () => true)} />
+    </Box>
+  )
+  const goalText =
+    sessionGoal !== null ? (
+      <Text weight="semibold" wrap="wrap">
+        <Text color="suggestion">◎ </Text>
+        {sessionGoal}
+      </Text>
+    ) : null
 
   return (
     <Box flexDirection="column">
-      <Box flexDirection="row" justifyContent="space-between" alignItems="flex-start" columnGap={3}>
-        <Box flexDirection="column" flexShrink={1}>
-          {sessionGoal !== null ? (
-            <Text weight="semibold">
-              <Text color="suggestion">◎ </Text>
-              {sessionGoal}
-            </Text>
-          ) : null}
+      {isNarrow ? (
+        <Box flexDirection="column" rowGap="xs">
+          {buttons}
+          {goalText}
         </Box>
-        <Box flexDirection="row" columnGap={1} flexShrink={0} alignItems="center">
-          {steps !== null && steps.length > 0 ? (
-            <Button
-              key="send"
-              label={picked.length > 0 ? `${t.send} (${picked.length})` : t.send}
-              variant="primary"
-              onPress={send}
-            />
-          ) : null}
-          <Button key="dismiss" label={t.close} onPress={() => update($, isHidden, () => true)} />
+      ) : (
+        <Box flexDirection="row" justifyContent="space-between" alignItems="flex-start" columnGap={3}>
+          <Box flexDirection="column" flexShrink={1}>
+            {goalText}
+          </Box>
+          {buttons}
         </Box>
-      </Box>
+      )}
       {steps === null ? (
         <Text dimColor>{t.loading}</Text>
-      ) : steps.length === 0 ? null : (
+      ) : stepList.length === 0 ? null : (
         <Box flexDirection="column" rowGap={roomy ? 'sm' : 0} marginTop={roomy ? 'sm' : 0}>
-          {steps.map((step, i) => {
+          {stepList.map((step, i) => {
             const isPicked = picked.includes(i)
             const isRecommended = recommended.includes(i)
-            const box = isPicked ? '☑' : '☐'
+            // The checkbox is a button of its own, drawn with the surface's own
+            // chrome: a full-size target. The step beside it wraps instead of
+            // being cut short.
             return (
-              <Button
-                key={`step-${i}`}
-                label={`${box} ${isRecommended ? '★ ' : ''}${step}`}
-                hotkey={withHotkeys ? String(i + 1) : undefined}
-                plain
-                onPress={() => toggle(i)}
-              >
-                {/* Where the surface draws children: a larger, colored box, the star, the step dim until picked. */}
-                <Text size="title" color={isPicked ? 'success' : 'inactive'}>
-                  {box}
-                </Text>
-                {isRecommended ? <Text color="warning">{'  ★'}</Text> : null}
-                <Text dimColor={!isPicked}>{`  ${step}`}</Text>
-              </Button>
+              <Box key={`row-${i}`} flexDirection="row" alignItems="flex-start" columnGap={1}>
+                <Button
+                  key={`step-${i}`}
+                  label="✓"
+                  variant={isPicked ? 'primary' : 'secondary'}
+                  dimColor={!isPicked}
+                  hotkey={withHotkeys ? String(i + 1) : undefined}
+                  onPress={() => toggle(i)}
+                />
+                <Box flexShrink={1}>
+                  <Text wrap="wrap" dimColor={!isPicked}>
+                    {isRecommended ? <Text color="warning">★ </Text> : null}
+                    {step}
+                  </Text>
+                </Box>
+              </Box>
             )
           })}
         </Box>
@@ -415,6 +449,6 @@ export const register: Register = (on, options) => {
     if (summary.steps !== null && summary.steps.length === 0 && (summary.goal ?? (await read($, goal))) === null) {
       return next(e)
     }
-    return drawSummary($, $.ui.resolve(e), summary, e.surface === 'terminal', langFor(summary), e.props.maxRows)
+    return drawSummary($, $.ui.resolve(e), summary, e.surface === 'terminal', langFor(summary), e.props.maxRows, e.props.bodyColumns)
   })
 }
