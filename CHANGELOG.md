@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.2 – unreleased
+
+- Send and Close sit in the band's top-right corner; the "Next steps" heading is gone.
+- The band fits without scrolling: the space between step rows is dropped when it would not fit.
+- Automatic language no longer falls back to English when the mod reloads during a turn.
+
 ## 0.5.1 – unreleased
 
 - More room between the step rows, and larger checkboxes where the surface sizes text (the desktop app).

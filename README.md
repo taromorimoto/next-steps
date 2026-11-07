@@ -7,13 +7,11 @@ A Claude Code mod that shows, every time Claude finishes a task:
 - **3–5 suggested next steps** that move toward that goal. The steps Opus recommends are starred (★) and already checked. Pick any combination and press **Send selected** to send them as your next prompt.
 
 ```
-◎ Goal: Ship a login flow with tests
+◎ Goal: Ship a login flow with tests          [ Send selected (2) ]  [ Close ]
 ✓ Done · took 3m 12s
-Next steps (★ = recommended, pick one or more):
 ☑ ★ Run the tests in CI
 ☐ Update the README
 ☑ ★ Add logout
-[ Send selected (2) ]  [ Close ]
 ```
 
 The suggested steps follow the language of your request.

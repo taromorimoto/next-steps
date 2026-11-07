@@ -30,6 +30,8 @@ declare module 'claude-code' {
       durations: Readonly<Record<string, number>>
       /** The session's goal as last found; kept from turn to turn so it stays stable. */
       goal: string | null
+      /** The prompt that started the latest turn, kept across reloads. */
+      lastRequest: string
     }
   }
 }

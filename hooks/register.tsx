@@ -8,6 +8,7 @@ const selected = atom({ plugin: 'next-steps', key: 'selected' } as const, [])
 const isHidden = atom({ plugin: 'next-steps', key: 'isHidden' } as const, true)
 const durations = atom({ plugin: 'next-steps', key: 'durations' } as const, {})
 const goal = atom({ plugin: 'next-steps', key: 'goal' } as const, null)
+const lastRequest = atom({ plugin: 'next-steps', key: 'lastRequest' } as const, '')
 
 const MAX_ROWS = 200
 const MAX_STEPS = 5
@@ -36,7 +37,6 @@ const STRINGS = {
     done: 'Done',
     took: 'took',
     loading: 'Getting next steps…',
-    heading: 'Next steps (★ = recommended, pick one or more):',
     send: 'Send selected',
     close: 'Close',
     doTheseNext: 'Do these next:',
@@ -46,7 +46,6 @@ const STRINGS = {
     done: 'Valmis',
     took: 'kesto',
     loading: 'Haetaan seuraavia askeleita…',
-    heading: 'Seuraavat askeleet (★ = suositeltu, valitse yksi tai useampi):',
     send: 'Lähetä valitut',
     close: 'Sulje',
     doTheseNext: 'Tee seuraavaksi nämä:',
@@ -180,7 +179,14 @@ ${ASK}`
 type Elements = Pick<ElementTable, 'Box' | 'Button' | 'Text'>
 
 /** The interactive summary: duration, selectable next steps, send and close. */
-const drawSummary = async ($: EngineInterface, ui: Elements, summary: Summary, withHotkeys: boolean, lang: Lang) => {
+const drawSummary = async (
+  $: EngineInterface,
+  ui: Elements,
+  summary: Summary,
+  withHotkeys: boolean,
+  lang: Lang,
+  maxRows?: number,
+) => {
   const t: Strings = STRINGS[lang]
   const { Box, Button, Text } = ui
   const picked = await read($, selected)
@@ -202,26 +208,43 @@ const drawSummary = async ($: EngineInterface, ui: Elements, summary: Summary, w
   }
 
   const sessionGoal = summary.goal ?? (await read($, goal))
+  const stepCount = steps?.length ?? 0
+  // Room between the rows only while the whole band still fits without scrolling.
+  const roomy = maxRows === undefined || 2 + 2 * stepCount <= maxRows
 
   return (
     <Box flexDirection="column">
-      {sessionGoal !== null ? (
-        <Box marginBottom={1}>
-          <Text color="cyan">◎ </Text>
-          <Text bold>{t.goal}: </Text>
-          <Text>{sessionGoal}</Text>
+      <Box flexDirection="row" justifyContent="space-between" alignItems="flex-start" columnGap={2}>
+        <Box flexDirection="column" flexShrink={1}>
+          {sessionGoal !== null ? (
+            <Box>
+              <Text color="cyan">◎ </Text>
+              <Text bold>{t.goal}: </Text>
+              <Text>{sessionGoal}</Text>
+            </Box>
+          ) : null}
+          <Box>
+            <Text color="green">✓ </Text>
+            <Text bold>{t.done}</Text>
+            <Text dimColor> · {t.took} {formatDuration(summary.ms, lang)}</Text>
+          </Box>
         </Box>
-      ) : null}
-      <Box>
-        <Text color="green">✓ </Text>
-        <Text bold>{t.done}</Text>
-        <Text dimColor> · {t.took} {formatDuration(summary.ms, lang)}</Text>
+        <Box flexDirection="row" columnGap={1} flexShrink={0}>
+          {steps !== null && steps.length > 0 ? (
+            <Button
+              key="send"
+              label={picked.length > 0 ? `${t.send} (${picked.length})` : t.send}
+              variant="primary"
+              onPress={send}
+            />
+          ) : null}
+          <Button key="dismiss" label={t.close} onPress={() => update($, isHidden, () => true)} />
+        </Box>
       </Box>
       {steps === null ? (
         <Text dimColor>{t.loading}</Text>
       ) : steps.length === 0 ? null : (
-        <Box flexDirection="column" rowGap="sm">
-          <Text dimColor>{t.heading}</Text>
+        <Box flexDirection="column" rowGap={roomy ? 'sm' : 0} marginTop={roomy ? 'xs' : 0}>
           {steps.map((step, i) => {
             const box = picked.includes(i) ? '☑' : '☐'
             const text = `${recommended.includes(i) ? '★ ' : ''}${step}`
@@ -241,17 +264,6 @@ const drawSummary = async ($: EngineInterface, ui: Elements, summary: Summary, w
           })}
         </Box>
       )}
-      <Box marginTop={1} columnGap={1}>
-        {steps !== null && steps.length > 0 ? (
-          <Button
-            key="send"
-            label={picked.length > 0 ? `${t.send} (${picked.length})` : t.send}
-            variant="primary"
-            onPress={send}
-          />
-        ) : null}
-        <Button key="dismiss" label={t.close} onPress={() => update($, isHidden, () => true)} />
-      </Box>
     </Box>
   )
 }
@@ -306,14 +318,14 @@ const generateSteps = async ($: EngineInterface, turnId: string, request: string
 
 export const register: Register = (on, options) => {
   const setting = langOf(options)
-  let lastRequest = ''
   let locale: string | undefined
   /** The labels' language for a turn: the setting, or on "auto" what the request was written in. */
   const langFor = (summary: Summary | null): Lang =>
     setting !== 'auto' ? setting : (summary?.lang ?? detectLang(summary?.request ?? '', locale))
 
   on('prompt.submit', async ($, e, next) => {
-    lastRequest = e.text
+    // Kept in state, not a module variable, so a reload mid-turn does not lose it.
+    void update($, lastRequest, () => e.text).catch(() => {})
     // Never let hiding the summary hold up the person's prompt.
     void update($, isHidden, () => true).catch(() => {})
     return next(e)
@@ -343,9 +355,10 @@ export const register: Register = (on, options) => {
     }
 
     const turnId = e.turnId
-    const request = clip(lastRequest, 4000)
+    const requestText = await read($, lastRequest).catch(() => '')
+    const request = clip(requestText, 4000)
     const answer = clip(e.answer, 8000)
-    const lang = setting !== 'auto' ? setting : detectLang(lastRequest, locale)
+    const lang = setting !== 'auto' ? setting : detectLang(requestText, locale)
     await update($, last, () => ({ turnId, ms: e.durationMs, steps: null, isPlaced: false, request, answer, lang }))
     await update($, selected, () => [])
     await update($, isHidden, () => false)
@@ -402,6 +415,6 @@ export const register: Register = (on, options) => {
     ) {
       return next(e)
     }
-    return drawSummary($, $.ui.resolve(e), summary, true, langFor(summary))
+    return drawSummary($, $.ui.resolve(e), summary, true, langFor(summary), e.props.maxRows)
   })
 }
