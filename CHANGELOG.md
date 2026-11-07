@@ -1,16 +1,16 @@
 # Changelog
 
-## 0.9.0 – unreleased
+## 0.9.0 – 2026-11-07
 
 - Click a step's text to pick it, not only its checkbox.
 - The step row lights up under the pointer.
 - Long steps wrap onto several lines, each line part of the click target.
 
-## 0.8.1 – unreleased
+## 0.8.1 – 2026-11-07
 
 - Step rows always keep space between them, so the checkbox buttons no longer overlap.
 
-## 0.8.0 – unreleased
+## 0.8.0 – 2026-11-07
 
 - Each step's checkbox is a button of its own, drawn full size with the surface's chrome, and the step's text beside it wraps instead of being cut short with an ellipsis.
 - In a narrow window the Send and Close buttons go on a row of their own above the goal, so the goal gets the full width.
