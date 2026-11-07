@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.0 – unreleased
+
+- Cleaner band: the goal is the title (◎, semibold) with the duration as a small line under it; checkboxes are colored, unpicked steps are dimmed, and the recommended star moves to the end of the row so every step lines up.
+- No number chips on the desktop app; on the terminal 1–5 still toggle steps.
+
 ## 0.5.2 – unreleased
 
 - Send and Close sit in the band's top-right corner; the "Next steps" heading is gone.

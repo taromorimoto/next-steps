@@ -7,11 +7,12 @@ A Claude Code mod that shows, every time Claude finishes a task:
 - **3–5 suggested next steps** that move toward that goal. The steps Opus recommends are starred (★) and already checked. Pick any combination and press **Send selected** to send them as your next prompt.
 
 ```
-◎ Goal: Ship a login flow with tests          [ Send selected (2) ]  [ Close ]
+◎ Ship a login flow with tests                 [ Send selected (2) ]  [ Close ]
 ✓ Done · took 3m 12s
-☑ ★ Run the tests in CI
-☐ Update the README
-☑ ★ Add logout
+
+☑  Run the tests in CI  ★
+☐  Update the README
+☑  Add logout  ★
 ```
 
 The suggested steps follow the language of your request.
@@ -47,7 +48,7 @@ The suggested steps always follow the language of your request.
 ## Where it shows
 
 - **Claude Code terminal and desktop app:** in the band right above the prompt box. Where a surface draws transcript rows, it goes under the answer instead.
-- Steps are numbered; on the terminal, press 1–5 to toggle one.
+- On the terminal, press 1–5 to toggle a step.
 - Interrupted turns and subagent work show nothing.
 
 ## Cost

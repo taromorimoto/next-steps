@@ -33,7 +33,6 @@ export const formatDuration = (ms: number, lang: Lang = 'en'): string => {
 
 const STRINGS = {
   en: {
-    goal: 'Goal',
     done: 'Done',
     took: 'took',
     loading: 'Getting next steps…',
@@ -42,7 +41,6 @@ const STRINGS = {
     doTheseNext: 'Do these next:',
   },
   fi: {
-    goal: 'Tavoite',
     done: 'Valmis',
     took: 'kesto',
     loading: 'Haetaan seuraavia askeleita…',
@@ -214,20 +212,18 @@ const drawSummary = async (
 
   return (
     <Box flexDirection="column">
-      <Box flexDirection="row" justifyContent="space-between" alignItems="flex-start" columnGap={2}>
-        <Box flexDirection="column" flexShrink={1}>
+      <Box flexDirection="row" justifyContent="space-between" alignItems="flex-start" columnGap={3}>
+        <Box flexDirection="column" flexShrink={1} rowGap="xs">
           {sessionGoal !== null ? (
-            <Box>
-              <Text color="cyan">◎ </Text>
-              <Text bold>{t.goal}: </Text>
-              <Text>{sessionGoal}</Text>
-            </Box>
+            <Text weight="semibold">
+              <Text color="suggestion">◎ </Text>
+              {sessionGoal}
+            </Text>
           ) : null}
-          <Box>
-            <Text color="green">✓ </Text>
-            <Text bold>{t.done}</Text>
-            <Text dimColor> · {t.took} {formatDuration(summary.ms, lang)}</Text>
-          </Box>
+          <Text dimColor size="footnote">
+            <Text color="success">✓ </Text>
+            {t.done} · {t.took} {formatDuration(summary.ms, lang)}
+          </Text>
         </Box>
         <Box flexDirection="row" columnGap={1} flexShrink={0}>
           {steps !== null && steps.length > 0 ? (
@@ -244,21 +240,25 @@ const drawSummary = async (
       {steps === null ? (
         <Text dimColor>{t.loading}</Text>
       ) : steps.length === 0 ? null : (
-        <Box flexDirection="column" rowGap={roomy ? 'sm' : 0} marginTop={roomy ? 'xs' : 0}>
+        <Box flexDirection="column" rowGap={roomy ? 'sm' : 0} marginTop={roomy ? 'sm' : 0}>
           {steps.map((step, i) => {
-            const box = picked.includes(i) ? '☑' : '☐'
-            const text = `${recommended.includes(i) ? '★ ' : ''}${step}`
+            const isPicked = picked.includes(i)
+            const isRecommended = recommended.includes(i)
+            const box = isPicked ? '☑' : '☐'
             return (
               <Button
                 key={`step-${i}`}
-                label={`${box} ${text}`}
+                label={`${box} ${step}${isRecommended ? ' ★' : ''}`}
                 hotkey={withHotkeys ? String(i + 1) : undefined}
                 plain
                 onPress={() => toggle(i)}
               >
-                {/* A larger checkbox where the surface sizes text; the label alone elsewhere. */}
-                <Text size="heading">{box}</Text>
-                <Text> {text}</Text>
+                {/* Where the surface draws children: a larger, colored box, the step dim until picked, the star last. */}
+                <Text size="heading" color={isPicked ? 'success' : 'inactive'}>
+                  {box}
+                </Text>
+                <Text dimColor={!isPicked}>{`  ${step}`}</Text>
+                {isRecommended ? <Text color="warning">{'  ★'}</Text> : null}
               </Button>
             )
           })}
@@ -415,6 +415,6 @@ export const register: Register = (on, options) => {
     ) {
       return next(e)
     }
-    return drawSummary($, $.ui.resolve(e), summary, true, langFor(summary), e.props.maxRows)
+    return drawSummary($, $.ui.resolve(e), summary, e.surface === 'terminal', langFor(summary), e.props.maxRows)
   })
 }
