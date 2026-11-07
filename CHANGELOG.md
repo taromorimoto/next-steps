@@ -1,10 +1,13 @@
 # Changelog
 
+## 0.8.1 – unreleased
+
+- Step rows always keep space between them, so the checkbox buttons no longer overlap.
+
 ## 0.8.0 – unreleased
 
 - Each step's checkbox is a button of its own, drawn full size with the surface's chrome, and the step's text beside it wraps instead of being cut short with an ellipsis.
 - In a narrow window the Send and Close buttons go on a row of their own above the goal, so the goal gets the full width.
-- Row spacing is sized to what fits: it is dropped when wrapped goals and steps would otherwise make the band scroll.
 
 ## 0.7.0 – 2026-11-07
 

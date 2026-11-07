@@ -1,6 +1,6 @@
 {
   "name": "next-steps",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "After every task: the session's goal and suggested next steps toward it, several of which you can pick and send in one go",
   "author": {
     "name": "taromorimoto"
