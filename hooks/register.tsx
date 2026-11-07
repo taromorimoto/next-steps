@@ -178,6 +178,27 @@ type Elements = Pick<ElementTable, 'Box' | 'Button' | 'Text'>
 
 /** Below this many columns the buttons go on a row of their own, above the goal. */
 const NARROW_COLUMNS = 80
+/** About how many columns the checkbox button and star take before a step's text. */
+const STEP_INDENT = 9
+/** The row's background under the pointer: a light wash that reads on light and dark themes. */
+const HOVER_BACKGROUND = 'rgba(127, 127, 127, 0.14)'
+
+/** Splits text into lines of at most `width` characters at spaces; a longer word gets a line of its own. */
+export const wrapWords = (text: string, width: number): string[] => {
+  if (!Number.isFinite(width) || text.length <= width) return [text]
+  const lines: string[] = []
+  let line = ''
+  for (const word of text.split(/\s+/).filter(w => w.length > 0)) {
+    if (line.length === 0) line = word
+    else if (line.length + 1 + word.length <= width) line = `${line} ${word}`
+    else {
+      lines.push(line)
+      line = word
+    }
+  }
+  if (line.length > 0) lines.push(line)
+  return lines.length > 0 ? lines : [text]
+}
 
 
 /** The interactive summary: duration, selectable next steps, send and close. */
@@ -186,6 +207,7 @@ const drawSummary = async (
   ui: Elements,
   summary: Summary,
   withHotkeys: boolean,
+  hasPointer: boolean,
   lang: Lang,
   columns?: number,
 ) => {
@@ -217,6 +239,9 @@ const drawSummary = async (
   // the full width instead of a narrow column.
   const cols = columns ?? 120
   const isNarrow = cols < NARROW_COLUMNS
+  // What is left for a step's text beside its checkbox and star, with a margin
+  // for the surface's proportional font.
+  const textColumns = columns === undefined ? Infinity : Math.max(20, Math.floor((cols - STEP_INDENT) * 0.92))
 
   const buttons = (
     <Box flexDirection="row" columnGap={1} flexShrink={0} justifyContent="flex-end">
@@ -263,11 +288,18 @@ const drawSummary = async (
           {stepList.map((step, i) => {
             const isPicked = picked.includes(i)
             const isRecommended = recommended.includes(i)
-            // The checkbox is a button of its own, drawn with the surface's own
-            // chrome: a full-size target. The step beside it wraps instead of
-            // being cut short.
+            // A button's label never wraps, so the step is split into lines by
+            // hand, each a chrome-less button that toggles the step: the whole
+            // text is a click target, and none of it is cut short.
+            const lines = wrapWords(step, textColumns)
             return (
-              <Box key={`row-${i}`} flexDirection="row" alignItems="flex-start" columnGap={1}>
+              <Box
+                key={`row-${i}`}
+                flexDirection="row"
+                alignItems="flex-start"
+                columnGap={1}
+                hover={hasPointer ? { backgroundColor: HOVER_BACKGROUND } : undefined}
+              >
                 <Button
                   key={`step-${i}`}
                   label="✓"
@@ -276,11 +308,17 @@ const drawSummary = async (
                   hotkey={withHotkeys ? String(i + 1) : undefined}
                   onPress={() => toggle(i)}
                 />
-                <Box flexShrink={1}>
-                  <Text wrap="wrap" dimColor={!isPicked}>
-                    {isRecommended ? <Text color="warning">★ </Text> : null}
-                    {step}
-                  </Text>
+                {isRecommended ? <Text color="warning">★</Text> : null}
+                <Box flexDirection="column" flexShrink={1}>
+                  {lines.map((line, n) => (
+                    <Button
+                      key={`text-${i}-${n}`}
+                      label={line}
+                      plain
+                      dimColor={!isPicked}
+                      onPress={() => toggle(i)}
+                    />
+                  ))}
                 </Box>
               </Box>
             )
@@ -414,7 +452,7 @@ export const register: Register = (on, options) => {
     const isCurrent = summary !== null && summary.turnId === rowId && !(await read($, isHidden))
 
     if (isCurrent) {
-      return drawSummary($, ui, summary, false, langFor(summary))
+      return drawSummary($, ui, summary, false, e.surface !== 'terminal', langFor(summary))
     }
 
     // An older row, or the latest once dealt with: the duration alone.
@@ -442,6 +480,6 @@ export const register: Register = (on, options) => {
     if (summary.steps !== null && summary.steps.length === 0 && (summary.goal ?? (await read($, goal))) === null) {
       return next(e)
     }
-    return drawSummary($, $.ui.resolve(e), summary, e.surface === 'terminal', langFor(summary), e.props.bodyColumns)
+    return drawSummary($, $.ui.resolve(e), summary, e.surface === 'terminal', e.surface !== 'terminal', langFor(summary), e.props.bodyColumns)
   })
 }

@@ -46,7 +46,7 @@ The suggested steps always follow the language of your request.
 ## Where it shows
 
 - **Claude Code terminal and desktop app:** in the band right above the prompt box. Where a surface draws transcript rows, it goes under the answer instead.
-- On the terminal, press 1–5 to toggle a step.
+- Click a step's checkbox or its text to pick it; the row lights up under the pointer. On the terminal, press 1–5.
 - Interrupted turns and subagent work show nothing.
 
 ## Cost

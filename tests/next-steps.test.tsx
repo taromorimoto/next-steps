@@ -7,7 +7,7 @@ const row = (id: string) =>
     props: { id, plugin: 'next-steps' },
   }) as const
 
-/** A step as the band draws it: ☑ for a picked checkbox button, ☐ otherwise, then the row's text. */
+/** A step as the band draws it: ☑ for a picked checkbox button, ☐ otherwise, then the star and the text lines. */
 const stepRow = async (ui: any, i: number) => {
   const box = await ui.find({ type: 'Button', key: `step-${i}` })
   const find = (node: any): any =>
@@ -16,9 +16,15 @@ const stepRow = async (ui: any, i: number) => {
       : node.props?.key === `row-${i}`
         ? node
         : (node.children ?? []).map(find).find((x: any) => x !== undefined)
-  const textOf = (node: any): string =>
-    typeof node === 'string' ? node : node?.type === 'Button' ? '' : (node?.children ?? []).map(textOf).join('')
-  return `${box?.props.variant === 'primary' ? '☑' : '☐'} ${textOf(find(await ui.drawn()))}`
+  const parts: string[] = []
+  const walk = (node: any) => {
+    if (node === null || typeof node !== 'object') return
+    if (node.type === 'Text') parts.push((node.children ?? []).filter((c: any) => typeof c === 'string').join(''))
+    if (node.type === 'Button' && String(node.props?.key).startsWith(`text-${i}-`)) parts.push(node.props.label)
+    for (const child of node.children ?? []) walk(child)
+  }
+  walk(find(await ui.drawn()))
+  return `${box?.props.variant === 'primary' ? '☑' : '☐'} ${parts.join(' ')}`
 }
 
 const USAGE = { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
@@ -394,4 +400,32 @@ test('the step rows draw on every surface, with hotkeys on the terminal alone', 
     expect((await band.find({ type: 'Button', key: 'step-0' }))?.props.hotkey).toBe(surface === 'terminal' ? '1' : undefined)
     await band.unmount()
   }
+})
+
+test('the step text toggles the step too, wraps into lines, and lights the row on hover', { options: { language: 'en' } }, async ($, on) => {
+  const clock = mock.clock(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('ui.place', () => ({ value: { isPlaced: false, reason: 'no attached surface draws placed rows yet' } }))
+  on('model.fork', () => ({
+    value: {
+      isAnswered: true,
+      text: '{"goal": "G", "steps": [{"step": "Package the body, lid and rubber STL files into a zip for a friend", "recommended": false}]}',
+      usage: USAGE,
+    },
+  }))
+
+  await finishTurn($)
+  await clock.settle()
+
+  const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: { ...BAND_PROPS, bodyColumns: 50 } })
+  const lines = (await band.findAll({ type: 'Button' })).filter((b: { key?: string }) => b.key?.startsWith('text-0-'))
+  // Wrapped into lines that together hold the whole step, none cut short.
+  expect(lines.length).toBeGreaterThan(1)
+  expect(await stepRow(band, 0)).toBe('☐ Package the body, lid and rubber STL files into a zip for a friend')
+  // A press on the text, its second line here, toggles the step as the checkbox does.
+  await band.press({ key: 'text-0-1' })
+  expect((await stepRow(band, 0)).startsWith('☑ ')).toBe(true)
+  // The row lights under the pointer.
+  expect(JSON.stringify(await band.drawn())).toContain('rgba(127, 127, 127, 0.14)')
+  await band.unmount()
 })

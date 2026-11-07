@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.0 – unreleased
+
+- Click a step's text to pick it, not only its checkbox.
+- The step row lights up under the pointer.
+- Long steps wrap onto several lines, each line part of the click target.
+
 ## 0.8.1 – unreleased
 
 - Step rows always keep space between them, so the checkbox buttons no longer overlap.
