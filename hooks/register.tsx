@@ -10,6 +10,7 @@ const durations = atom({ plugin: 'next-steps', key: 'durations' } as const, {})
 const goal = atom({ plugin: 'next-steps', key: 'goal' } as const, null)
 const lastRequest = atom({ plugin: 'next-steps', key: 'lastRequest' } as const, '')
 const note = atom({ plugin: 'next-steps', key: 'note' } as const, '')
+const isNotePicked = atom({ plugin: 'next-steps', key: 'isNotePicked' } as const, false)
 
 const MAX_ROWS = 200
 const MAX_STEPS = 5
@@ -305,10 +306,13 @@ const drawSummary = async (
     update($, selected, cur => (cur.includes(i) ? cur.filter(x => x !== i) : [...cur, i].sort((a, b) => a - b)))
 
   const typed = await read($, note)
+  const isTypedPicked = (await read($, isNotePicked)) && typed.trim().length > 0
+  const pickedCount = picked.length + (isTypedPicked ? 1 : 0)
 
-  const send = async (written: string = typed) => {
+  /** `written`: the field's text as Enter sent it, newer than this drawing's. */
+  const send = async (written?: string) => {
     const chosen = picked.map(i => steps?.[i]).filter((s): s is string => s !== undefined)
-    const own = written.trim()
+    const own = written !== undefined ? written.trim() : isTypedPicked ? typed.trim() : ''
     if (chosen.length === 0 && own.length === 0) return
     const list =
       chosen.length === 0
@@ -320,6 +324,7 @@ const drawSummary = async (
     const text = [list, own].filter(part => part.length > 0).join('\n\n')
     await update($, isHidden, () => true)
     await update($, note, () => '')
+    await update($, isNotePicked, () => false)
     await $.prompt.submit({ text, asUser: true })
   }
 
@@ -340,7 +345,7 @@ const drawSummary = async (
       {stepList.length > 0 || typed.trim().length > 0 ? (
         <Button
           key="send"
-          label={picked.length > 0 ? `${t.send} (${picked.length})` : t.send}
+          label={pickedCount > 0 ? `${t.send} (${pickedCount})` : t.send}
           variant="primary"
           onPress={() => send()}
         />
@@ -446,17 +451,43 @@ const drawSummary = async (
           })}
         </Box>
       )}
-      {/* Room for the person's own words, sent after the picked steps; Enter sends. */}
+      {/* The person's own words: a row like a step's, its checkbox checked by
+          typing; they go out after the picked steps with Send, or on Enter. */}
       {Input !== undefined ? (
-        <Box marginTop="sm">
-          <Input
-            key="note"
-            placeholder={t.notePlaceholder}
-            value={typed}
-            submitLabel={t.send}
-            onInput={value => void update($, note, () => value)}
-            onSubmit={value => void send(value)}
+        <Box
+          key="note-row"
+          flexDirection="row"
+          alignItems="center"
+          columnGap={1}
+          marginTop={stepList.length > 0 ? 'xs' : 'sm'}
+          paddingX={hasPointer ? 'xs' : 0}
+        >
+          <Button
+            key="note-pick"
+            label="✓"
+            variant={isTypedPicked ? 'primary' : 'secondary'}
+            dimColor={!isTypedPicked}
+            onPress={() => update($, isNotePicked, cur => !cur)}
           />
+          {hasPointer && Svg !== undefined ? (
+            <Svg key="note-mark" source={NO_ICON} alt=" " width={ICON_SIZE} height={ICON_SIZE} />
+          ) : (
+            <Text> </Text>
+          )}
+          <Box flexGrow={1} flexShrink={1}>
+            <Input
+              key="note"
+              placeholder={t.notePlaceholder}
+              value={typed}
+              // No button of its own: Send at the top sends; Enter still does.
+              submitLabel=""
+              onInput={value => {
+                void update($, note, () => value)
+                void update($, isNotePicked, () => value.trim().length > 0)
+              }}
+              onSubmit={value => void send(value)}
+            />
+          </Box>
         </Box>
       ) : null}
     </Box>
@@ -578,6 +609,7 @@ export const register: Register = (on, options) => {
     await update($, last, () => ({ turnId, ms: e.durationMs, steps: null, isPlaced: false, request, answer, lang }))
     await update($, selected, () => [])
     await update($, note, () => '')
+    await update($, isNotePicked, () => false)
     await update($, isHidden, () => false)
     await update($, durations, cur => {
       const entries = Object.entries(cur).slice(-(MAX_ROWS - 1))

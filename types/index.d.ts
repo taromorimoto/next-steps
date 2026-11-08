@@ -34,6 +34,8 @@ declare module 'claude-code' {
       isHidden: boolean
       /** What the person typed in the band's own field, sent with the picked steps. */
       note: string
+      /** Whether the field's words go out with Send; checked by typing, unchecked by hand. */
+      isNotePicked: boolean
       /** Duration of every turn that placed a row, by turn id, so older rows keep theirs. */
       durations: Readonly<Record<string, number>>
       /** The session's goal as last found; kept from turn to turn so it stays stable. */

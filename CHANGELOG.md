@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.1 – unreleased
+
+- The text field sits on a row like a step's, with its own checkbox: typing checks it, unchecking keeps the words but leaves them out. It counts in **Send selected** and has no send button of its own.
+
 ## 0.12.0 – unreleased
 
 - A free-text field under the steps: your own words are sent after the picked steps, or alone when none is picked. Enter sends. (Not in the mobile app, which draws no fields yet.)

@@ -601,8 +601,15 @@ test('the band\'s own field adds the person\'s words to the picked steps, or sen
 
   let band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
   expect((await band.find({ type: 'Input', key: 'note' }))?.props.placeholder).toBe('Lisää omin sanoin…')
-  // Typed, then sent with the button: the words follow the picked step.
+  // Typing checks the field's own checkbox; Send then adds the words after the picked step.
+  expect((await band.find({ type: 'Button', key: 'note-pick' }))?.props.variant).toBe('secondary')
   await band.input({ key: 'note', text: 'Käytä stagingia ensin', kind: 'change' })
+  expect((await band.find({ type: 'Button', key: 'note-pick' }))?.props.variant).toBe('primary')
+  expect((await band.find({ type: 'Button', key: 'send' }))?.props.label).toBe('Lähetä valitut (2)')
+  // Unchecked, the words stay in the field but are not sent.
+  await band.press({ key: 'note-pick' })
+  expect((await band.find({ type: 'Button', key: 'send' }))?.props.label).toBe('Lähetä valitut (1)')
+  await band.press({ key: 'note-pick' })
   await band.press({ key: 'send' })
   expect(submitted.at(-1)).toBe('Aja testit\n\nKäytä stagingia ensin')
   await band.unmount()
