@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.1 – unreleased
+
+- A question's replies get Claude's mark on one reply at most, and only one starts checked: listing options is no longer read as recommending them all.
+- Rows without a marker keep its place, so every step's text starts in one column.
+
 ## 0.11.0 – unreleased
 
 - A step Claude itself proposed or recommended in the conversation is marked with the Claude icon (✻ in the terminal) and starts checked; the band's own picks keep the star.

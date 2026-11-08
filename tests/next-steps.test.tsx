@@ -25,7 +25,7 @@ const stepRow = async (ui: any, i: number) => {
       if (text.length > 0) parts.push(text)
     }
     // An icon reads as its alt text; an empty one only keeps the column.
-    if (node.type === 'Svg' && String(node.props?.alt ?? '').length > 0) parts.push(node.props.alt === '★' ? '★' : '✻')
+    if (node.type === 'Svg' && String(node.props?.alt ?? '').trim().length > 0) parts.push(node.props.alt === '★' ? '★' : '✻')
     if (node.type === 'Button' && String(node.props?.key).startsWith(`text-${i}-`)) parts.push(node.props.label)
     for (const child of node.children ?? []) walk(child)
   }
@@ -560,5 +560,26 @@ test('without a question, the last steps can be milestones toward the goal, mark
   await band.press({ key: 'step-1' })
   await band.press({ key: 'send' })
   expect(submitted.at(-1)).toBe('Take the login flow to done: tests, docs and a release')
+  await band.unmount()
+})
+
+test('a question with several replies Claude listed checks and marks only one', { options: { language: 'fi' } }, async ($, on) => {
+  const clock = mock.clock(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('ui.place', () => ({ value: { isPlaced: false, reason: 'no attached surface draws placed rows yet' } }))
+  on('model.fork', () => ({
+    value: {
+      isAnswered: true,
+      text: '{"goal": "Julkaise SupaDojo", "question": "Julkaisenko korjaukset tuotantoon?", "steps": [{"step": "Julkaise korjaukset", "recommended": true, "claude": true}, {"step": "Ei vielä, odota", "recommended": true, "claude": true}, {"step": "Julkaise vain web"}]}',
+      usage: USAGE,
+    },
+  }))
+  await finishTurn($)
+  await clock.settle()
+  const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
+  expect(await stepRow(band, 0)).toBe('☑ ✻ Julkaise korjaukset')
+  expect(await stepRow(band, 1)).toBe('☐ Ei vielä, odota')
+  expect(await stepRow(band, 2)).toBe('☐ Julkaise vain web')
+  expect((await band.find({ type: 'Button', key: 'send' }))?.props.label).toBe('Lähetä valitut (1)')
   await band.unmount()
 })

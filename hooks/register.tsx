@@ -137,6 +137,16 @@ export const parseSteps = (text: string): ParsedSteps => {
 
 export type Suggestion = ParsedSteps & { goal: string | null; question: string | null }
 
+/**
+ * A question's replies mostly exclude each other: one may carry Claude's mark
+ * and one the star, Claude's pick first, so only one reply starts checked.
+ */
+const oneAnswer = (steps: ParsedSteps): ParsedSteps => {
+  const byClaude = steps.byClaude.slice(0, 1)
+  const recommended = byClaude.length > 0 ? [] : steps.recommended.slice(0, 1)
+  return { ...steps, byClaude, recommended }
+}
+
 const textOrNull = (value: unknown): string | null =>
   typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
 
@@ -152,7 +162,9 @@ export const parseSuggestion = (text: string): Suggestion => {
       const parsed: unknown = JSON.parse(text.slice(start, end + 1))
       if (parsed !== null && typeof parsed === 'object' && Array.isArray((parsed as { steps?: unknown }).steps)) {
         const o = parsed as { goal?: unknown; question?: unknown; steps: unknown[] }
-        return { goal: textOrNull(o.goal), question: textOrNull(o.question), ...parseSteps(JSON.stringify(o.steps)) }
+        const question = textOrNull(o.question)
+        const steps = parseSteps(JSON.stringify(o.steps))
+        return { goal: textOrNull(o.goal), question, ...(question === null ? steps : oneAnswer(steps)) }
       }
     } catch {
       // Fall through to a bare array.
@@ -177,7 +189,7 @@ const MILESTONES = `When the turn did not end on a question, make one or two of 
 
 const ASK = `Mark as recommended the steps you would advise doing next (at least one, usually one to three); leave optional or speculative ones unmarked. For a question, mark the reply the assistant recommended (or the one you would pick), and only one when the options exclude each other.
 
-Set "claude": true on a step only when the assistant itself, in the conversation, proposed or recommended that very step: said it recommends it, offered to do it next, or made it the first or primary answer of its question. Leave it out for steps only you thought of.
+Set "claude": true on a step only when the assistant itself, in the conversation, recommended that very step: said it recommends or prefers it, or offered to do it next. Merely listing an option is not recommending it. For a question, set it on one reply at most: the one the assistant said it recommends (or its primary answer button), never on several replies. Leave it out for steps only you thought of.
 
 Reply with only JSON: {"goal": "...", "question": "..." or null, "steps": [{"step": "...", "recommended": true, "claude": true, "milestone": true}, ...]} (leave out "claude" and "milestone" where they do not apply)`
 
@@ -244,7 +256,7 @@ const STAR_ICON = svgDoc(
   '<polygon fill="#E8A33D" points="12,2.5 14.8,8.7 21.5,9.3 16.4,13.7 18,20.3 12,16.8 6,20.3 7.6,13.7 2.5,9.3 9.2,8.7"/>',
 )
 /** Keeps the marker's column on a row with none. */
-const NO_ICON = svgDoc('')
+const NO_ICON = svgDoc('<rect width="24" height="24" fill="none"/>')
 const ICON_SIZE = 14
 
 /** Splits text into lines of at most `width` characters at spaces; a longer word gets a line of its own. */
@@ -395,7 +407,7 @@ const drawSummary = async (
                   <Svg
                     key={`mark-${i}`}
                     source={isClaudes ? CLAUDE_ICON : isRecommended ? STAR_ICON : NO_ICON}
-                    alt={isClaudes ? t.byClaude : isRecommended ? '★' : ''}
+                    alt={isClaudes ? t.byClaude : isRecommended ? '★' : ' '}
                     width={ICON_SIZE}
                     height={ICON_SIZE}
                   />
