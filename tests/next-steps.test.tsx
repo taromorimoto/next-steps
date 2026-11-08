@@ -555,6 +555,10 @@ test('without a question, the last steps can be milestones toward the goal, mark
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
   expect(await stepRow(band, 0)).toBe('☑ ★ Add a logout test')
   expect(await stepRow(band, 1)).toBe('☐ ◎ Take the login flow to done: tests, docs and a release')
+  // The checkboxes are numbered, the text field's next in line.
+  expect((await band.find({ type: 'Button', key: 'step-0' }))?.props.label).toBe('1')
+  expect((await band.find({ type: 'Button', key: 'step-1' }))?.props.label).toBe('2')
+  expect((await band.find({ type: 'Button', key: 'note-pick' }))?.props.label).toBe('3')
   // The mark is drawn, not sent.
   await band.press({ key: 'step-0' })
   await band.press({ key: 'step-1' })

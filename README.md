@@ -14,12 +14,11 @@ The same band, drawn as text:
 ```
 ◎ Ship a login flow with tests                 [ Send selected (2) ]  [ Close ]
 
-[✓] ✻ Run the tests in CI
-[ ] Update the README
-[✓] ★ Add logout
-[ ] ◎ Take the login flow to done: tests, docs and a release
-
-[ ]   [ Add your own words…                                                  ]
+[1] ✻ Run the tests in CI        (1 and 3 picked, drawn filled)
+[2]   Update the README
+[3] ★ Add logout
+[4] ◎ Take the login flow to done: tests, docs and a release
+[5]   [ Add your own words…                                                ]
 ```
 
 The suggested steps follow the language of your request.

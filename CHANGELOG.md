@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.0 – unreleased
+
+- The checkboxes are numbered (1, 2, 3…, the text field's next in line); a filled one is picked. The terminal keeps ✓, its number shown as the hotkey.
+
 ## 0.12.1 – unreleased
 
 - The text field sits on a row like a step's, with its own checkbox: typing checks it, unchecking keeps the words but leaves them out. It counts in **Send selected** and has no send button of its own.

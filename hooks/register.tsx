@@ -414,7 +414,8 @@ const drawSummary = async (
               >
                 <Button
                   key={`step-${i}`}
-                  label="✓"
+                  // Numbered, a filled button a picked one; the terminal shows its number as the hotkey.
+                  label={withHotkeys ? '✓' : String(i + 1)}
                   variant={isPicked ? 'primary' : 'secondary'}
                   dimColor={!isPicked}
                   hotkey={withHotkeys ? String(i + 1) : undefined}
@@ -464,7 +465,7 @@ const drawSummary = async (
         >
           <Button
             key="note-pick"
-            label="✓"
+            label={withHotkeys ? '✓' : String(stepList.length + 1)}
             variant={isTypedPicked ? 'primary' : 'secondary'}
             dimColor={!isTypedPicked}
             onPress={() => update($, isNotePicked, cur => !cur)}
