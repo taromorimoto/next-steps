@@ -64,17 +64,33 @@ const FINNISH_WORDS = new Set([
   'lisää', 'poista', 'tarkista', 'korjaa', 'muuta', 'kiitos', 'hei', 'joka', 'jotta', 'sitten', 'vain', 'koska',
 ])
 
+const ENGLISH_WORDS = new Set([
+  'the', 'a', 'an', 'and', 'or', 'to', 'of', 'in', 'on', 'for', 'with', 'is', 'are', 'it', 'this', 'that', 'these',
+  'do', 'does', 'can', 'could', 'would', 'please', 'add', 'fix', 'run', 'check', 'make', 'update', 'remove', 'test',
+  'next', 'from', 'so', 'if', 'not', 'what', 'how', 'why', 'when', 'into', 'then', 'also', 'now', 'be',
+])
+
+/** A Finnish word by its look: a double vowel or a common case or derivation ending. */
+const looksFinnish = (word: string): boolean =>
+  /(aa|ii|uu|yy|ää|öö)/.test(word) || /(ssa|ssä|sta|stä|lla|llä|lta|ltä|lle|ksi|nen|ista|istä|ttaa|ttää)$/.test(word)
+
 /**
- * Guesses the language of a prompt: Finnish on ä/ö or two common Finnish words,
- * English on three or more other words, else the system locale (LC_ALL / LANG).
+ * Guesses the language of a text, or undefined when it cannot tell:
+ * Finnish on ä/ö, else whichever of common Finnish and English words wins.
  */
-export const detectLang = (text: string, locale?: string): Lang => {
-  const words = text.toLowerCase().match(/[a-zåäö]+/g) ?? []
+export const guessLang = (text: string): Lang | undefined => {
   if (/[äö]/i.test(text)) return 'fi'
-  if (words.filter(w => FINNISH_WORDS.has(w)).length >= 2) return 'fi'
-  if (words.length >= 3) return 'en'
-  return locale !== undefined && locale.toLowerCase().startsWith('fi') ? 'fi' : 'en'
+  const words = text.toLowerCase().match(/[a-zå]+/g) ?? []
+  const fi = words.filter(w => FINNISH_WORDS.has(w) || (!ENGLISH_WORDS.has(w) && looksFinnish(w))).length
+  const en = words.filter(w => ENGLISH_WORDS.has(w)).length
+  if (fi > en) return 'fi'
+  if (en > fi) return 'en'
+  return undefined
 }
+
+/** The language of a prompt: guessed from its words, else the system locale (LC_ALL / LANG). */
+export const detectLang = (text: string, locale?: string): Lang =>
+  guessLang(text) ?? (locale !== undefined && locale.toLowerCase().startsWith('fi') ? 'fi' : 'en')
 
 export type ParsedSteps = { steps: string[]; recommended: number[] }
 
@@ -347,7 +363,13 @@ const NONE: Suggestion = { goal: null, steps: [], recommended: [] }
  * first from a fork of the whole conversation, else from the last request and
  * answer. Never leaves the summary stuck loading.
  */
-const generateSteps = async ($: EngineInterface, turnId: string, request: string, answer: string) => {
+const generateSteps = async (
+  $: EngineInterface,
+  turnId: string,
+  request: string,
+  answer: string,
+  isAutoLang: boolean,
+) => {
   const previousGoal = await read($, goal).catch(() => null)
   let parsed: Suggestion = NONE
 
@@ -379,7 +401,18 @@ const generateSteps = async ($: EngineInterface, turnId: string, request: string
   if (parsed.goal !== null) await update($, goal, () => parsed.goal)
   await update($, last, cur =>
     cur !== null && cur.turnId === turnId
-      ? { ...cur, steps: parsed.steps, recommended: parsed.recommended, goal: parsed.goal ?? cur.goal }
+      ? {
+          ...cur,
+          steps: parsed.steps,
+          recommended: parsed.recommended,
+          goal: parsed.goal ?? cur.goal,
+          // On "auto" the steps decide when they can: they are written in the conversation's
+          // language, while the request may be short, pasted, or the band's own English message.
+          lang:
+            isAutoLang && parsed.steps.length > 0
+              ? (guessLang([parsed.goal ?? '', ...parsed.steps].join(' ')) ?? cur.lang)
+              : cur.lang,
+        }
       : cur,
   )
   // The recommended steps start checked, unless the person already picked some.
@@ -408,7 +441,7 @@ export const register: Register = (on, options) => {
     const summary = await read($, last).catch(() => null)
     if (summary !== null && summary.steps === null) {
       if (summary.answer !== undefined) {
-        void generateSteps($, summary.turnId, summary.request ?? '', summary.answer)
+        void generateSteps($, summary.turnId, summary.request ?? '', summary.answer, setting === 'auto')
       } else {
         await update($, last, cur => (cur !== null && cur.turnId === summary.turnId ? { ...cur, steps: [] } : cur))
       }
@@ -445,7 +478,7 @@ export const register: Register = (on, options) => {
       await update($, last, cur => (cur !== null && cur.turnId === turnId ? { ...cur, isPlaced: true } : cur))
     }
 
-    void generateSteps($, turnId, request, answer)
+    void generateSteps($, turnId, request, answer, setting === 'auto')
 
     return result
   })

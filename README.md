@@ -39,7 +39,7 @@ In the desktop app, where `/plugin` does not run: click + next to the prompt box
 
 ## Language
 
-By default (`auto`) the labels follow the language of your request: Finnish requests get Finnish labels, everything else English (a very short prompt falls back to your system locale). To fix the language, set the `language` option to `en` or `fi`, either in the `/config` menu or from a shell:
+By default (`auto`) the labels follow the language of the conversation: the suggested steps' language when it is clear, else your request's (an undecided prompt falls back to your system locale, else English). To fix the language, set the `language` option to `en` or `fi`, either in the `/config` menu or from a shell:
 
 ```
 echo '{"language":"fi"}' | claude plugin configure next-steps@next-steps --values-stdin

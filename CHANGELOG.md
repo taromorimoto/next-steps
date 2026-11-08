@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.2 – unreleased
+
+- On `auto`, the language of the suggested steps decides the labels and the "Do these next:" line, so a Finnish conversation no longer gets English after a short, pasted or English-looking prompt.
+- Language guessing weighs common Finnish against common English words instead of calling any three words English.
+
 ## 0.9.1 – unreleased
 
 - The hover wash covers the whole step row, the checkbox included, instead of a strip behind the text.

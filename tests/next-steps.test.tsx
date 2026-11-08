@@ -199,7 +199,7 @@ test('a model call that rejects leaves no stuck loading line', async ($, on) => 
   await band.unmount()
 })
 
-test('a reload during generation picks the generation up again, recommended steps checked', async ($, on) => {
+test('a reload during generation picks the generation up again, recommended steps checked', { options: { language: 'en' } }, async ($, on) => {
   const clock = mock.clock(on)
   // What the module before the reload stored: a summary still loading.
   const store = new Map<string, { value: unknown; version: number }>([
@@ -238,7 +238,7 @@ test('a reload during generation picks the generation up again, recommended step
   await band.unmount()
 })
 
-test('the steps the model recommends start checked', async ($, on) => {
+test('the steps the model recommends start checked', { options: { language: 'en' } }, async ($, on) => {
   const clock = mock.clock(on)
   on('turn.complete', () => ({ text: '' }))
   on('ui.place', () => ({ value: { isPlaced: false, reason: 'no attached surface draws placed rows yet' } }))
@@ -286,12 +286,15 @@ test('language "fi" draws the band in Finnish', { options: { language: 'fi' } },
   await band.unmount()
 })
 
-const autoTurn = async ($: any, on: any, request: string) => {
+const autoTurn = async ($: any, on: any, request: string, steps = '[{"step": "x", "recommended": true}]', submitted: string[] = []) => {
   const clock = mock.clock(on)
   on('turn.complete', () => ({ text: '' }))
   on('ui.place', () => ({ value: { isPlaced: false, reason: 'no attached surface draws placed rows yet' } }))
-  on('model.complete', () => ({ value: { isAnswered: true, text: '[{"step": "x", "recommended": true}]', usage: USAGE } }))
-  on('prompt.submit', (_: unknown, e: { text: string }) => ({ text: e.text }))
+  on('model.complete', () => ({ value: { isAnswered: true, text: steps, usage: USAGE } }))
+  on('prompt.submit', (_: unknown, e: { text: string }) => {
+    submitted.push(e.text)
+    return { text: e.text }
+  })
   await $.prompt.submit({ text: request } as never)
   await finishTurn($)
   await clock.settle()
@@ -308,6 +311,15 @@ test('language "auto" (the default) follows a Finnish request', async ($, on) =>
 test('language "auto" follows an English request', async ($, on) => {
   const band = await autoTurn($, on, 'Please add login and tests')
   expect((await band.find({ type: 'Button', key: 'dismiss' }))?.props.label).toBe('Close')
+  await band.unmount()
+})
+
+test('language "auto" follows Finnish steps even after an English-looking request', async ($, on) => {
+  const submitted: string[] = []
+  const band = await autoTurn($, on, 'Do these next: 1. Fix the band', '[{"step": "Tarkista rivinvaihdot", "recommended": true}, {"step": "Julkaise versio", "recommended": true}]', submitted)
+  expect((await band.find({ type: 'Button', key: 'dismiss' }))?.props.label).toBe('Sulje')
+  await band.press({ key: 'send' })
+  expect(submitted.at(-1)).toBe('Tee seuraavaksi nämä:\n1. Tarkista rivinvaihdot\n2. Julkaise versio')
   await band.unmount()
 })
 
