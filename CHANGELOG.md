@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.0 – unreleased
+
+- A step Claude itself proposed or recommended in the conversation is marked with the Claude icon (✻ in the terminal) and starts checked; the band's own picks keep the star.
+- When Claude did not end on a question, the last one or two steps are milestones (◎): a larger piece of the goal for Claude to drive on its own.
+
 ## 0.10.0 – unreleased
 
 - When Claude ends a task with a question, the band shows the question and offers the replies Claude suggested as the choices, its recommendation starred, instead of generic next steps. This covers a question in Claude's text and one asked through a question box.

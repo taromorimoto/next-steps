@@ -24,6 +24,8 @@ const stepRow = async (ui: any, i: number) => {
       const text = (node.children ?? []).filter((c: any) => typeof c === 'string').join('').trim()
       if (text.length > 0) parts.push(text)
     }
+    // An icon reads as its alt text; an empty one only keeps the column.
+    if (node.type === 'Svg' && String(node.props?.alt ?? '').length > 0) parts.push(node.props.alt === '★' ? '★' : '✻')
     if (node.type === 'Button' && String(node.props?.key).startsWith(`text-${i}-`)) parts.push(node.props.label)
     for (const child of node.children ?? []) walk(child)
   }
@@ -457,7 +459,7 @@ test('when Claude ends on a question, the band shows it with the replies Claude 
     return {
       value: {
         isAnswered: true,
-        text: '{"goal": "Paranna next-steps-palkkia", "question": "Kumpi ulkoasu otetaan käyttöön?", "steps": [{"step": "Ota käyttöön paneeli", "recommended": true}, {"step": "Ota käyttöön palkki", "recommended": false}]}',
+        text: '{"goal": "Paranna next-steps-palkkia", "question": "Kumpi ulkoasu otetaan käyttöön?", "steps": [{"step": "Ota käyttöön paneeli", "recommended": false, "claude": true}, {"step": "Ota käyttöön palkki", "recommended": false}]}',
         usage: USAGE,
       },
     }
@@ -473,7 +475,18 @@ test('when Claude ends on a question, the band shows it with the replies Claude 
 
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
   expect((await band.find({ type: 'Text', text: /Kumpi ulkoasu/ }))?.text).toBe('? Kumpi ulkoasu otetaan käyttöön?')
-  expect(await stepRow(band, 0)).toBe('☑ ★ Ota käyttöön paneeli')
+  // Claude's own pick wears the Claude icon and starts checked.
+  expect(await stepRow(band, 0)).toBe('☑ ✻ Ota käyttöön paneeli')
+  const svgs: any[] = []
+  const walk = (node: any) => {
+    if (node === null || typeof node !== 'object') return
+    if (node.type === 'Svg') svgs.push(node)
+    for (const child of node.children ?? []) walk(child)
+  }
+  walk(await band.drawn())
+  const mark = svgs[0]
+  expect(mark?.props.alt).toBe('Clauden suositus')
+  expect(mark?.props.source).toContain('#D97757')
   expect(await stepRow(band, 1)).toBe('☐ Ota käyttöön palkki')
   // One reply goes out as it is, with no "do these next" line around it.
   await band.press({ key: 'send' })
@@ -492,5 +505,60 @@ test('a turn that ends without a question shows no question line', { options: { 
   await clock.settle()
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
   expect(await band.find({ type: 'Text', text: /^\? / })).toBeUndefined()
+  await band.unmount()
+})
+
+test('the terminal marks Claude\'s own pick with ✻ and the band\'s with ★', { options: { language: 'en' } }, async ($, on) => {
+  const clock = mock.clock(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('ui.place', () => ({ value: { isPlaced: false, reason: 'no attached surface draws placed rows yet' } }))
+  on('model.fork', () => ({
+    value: {
+      isAnswered: true,
+      text: '{"goal": "Ship it", "steps": [{"step": "Fix it here", "recommended": true, "claude": true}, {"step": "Add a test", "recommended": true}, {"step": "Later", "recommended": false}]}',
+      usage: USAGE,
+    },
+  }))
+  await finishTurn($)
+  await clock.settle()
+  const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'terminal', props: BAND_PROPS })
+  expect(await stepRow(band, 0)).toBe('☑ ✻ Fix it here')
+  expect(await stepRow(band, 1)).toBe('☑ ★ Add a test')
+  expect(await stepRow(band, 2)).toBe('☐ Later')
+  await band.unmount()
+})
+
+test('without a question, the last steps can be milestones toward the goal, marked ◎', { options: { language: 'en' } }, async ($, on) => {
+  const clock = mock.clock(on)
+  const forkPrompts: string[] = []
+  const submitted: string[] = []
+  on('turn.complete', () => ({ text: '' }))
+  on('ui.place', () => ({ value: { isPlaced: false, reason: 'no attached surface draws placed rows yet' } }))
+  on('model.fork', (_, e) => {
+    forkPrompts.push(e.prompt)
+    return {
+      value: {
+        isAnswered: true,
+        text: '{"goal": "Ship a login flow", "question": null, "steps": [{"step": "Add a logout test", "recommended": true}, {"step": "Take the login flow to done: tests, docs and a release", "milestone": true}]}',
+        usage: USAGE,
+      },
+    }
+  })
+  on('prompt.submit', (_, e) => {
+    submitted.push(e.text)
+    return { text: e.text }
+  })
+  await finishTurn($)
+  await clock.settle()
+  expect(forkPrompts[0]).toContain('"milestone": true')
+
+  const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
+  expect(await stepRow(band, 0)).toBe('☑ ★ Add a logout test')
+  expect(await stepRow(band, 1)).toBe('☐ ◎ Take the login flow to done: tests, docs and a release')
+  // The mark is drawn, not sent.
+  await band.press({ key: 'step-0' })
+  await band.press({ key: 'step-1' })
+  await band.press({ key: 'send' })
+  expect(submitted.at(-1)).toBe('Take the login flow to done: tests, docs and a release')
   await band.unmount()
 })

@@ -7,6 +7,10 @@ export type Summary = {
   steps: readonly string[] | null
   /** Indexes into `steps` the model recommends; drawn with a star and checked at first. */
   recommended?: readonly number[]
+  /** Indexes into `steps` that Claude itself proposed or recommended in the conversation; drawn with the Claude icon and checked at first. */
+  byClaude?: readonly number[]
+  /** Indexes into `steps` that are higher-level milestones toward the goal, for Claude to drive on its own; drawn with ◎. */
+  milestones?: readonly number[]
   /** True when a surface draws its transcript row; false shows it in the band above the prompt instead. */
   isPlaced: boolean
   /** What the steps are generated from (clipped), kept so a reload can finish an interrupted generation. */
