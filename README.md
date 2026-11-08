@@ -3,7 +3,7 @@
 A Claude Code mod that shows, every time Claude finishes a task:
 
 - **the goal of the session**, as Opus reads it from the whole conversation, kept stable from task to task, and
-- **3–5 suggested next steps** that move toward that goal. The steps Opus recommends are starred (★) and already checked; a step Claude itself proposed or recommended in the conversation wears the Claude icon (✻ in the terminal) and is checked too. The last one or two are often **milestones** (◎): a bigger piece of the goal that Claude can drive on its own, choosing the smaller steps itself. Pick any combination and press **Send selected** to send them as your next prompt.
+- **3–5 suggested next steps** that move toward that goal. The steps Opus recommends are starred (★) and already checked; a step Claude itself proposed or recommended in the conversation wears the Claude icon (✻ in the terminal) and is checked too. The last one or two are often **milestones** (◎): a bigger piece of the goal that Claude can drive on its own, choosing the smaller steps itself. Pick any combination and press **Send selected** to send them as your next prompt. A text field under the steps takes your own words: they are sent after the picked steps, or alone if none is picked (Enter sends too).
 
 When Claude ends a task with a question (*"Should I fix this here or in a new PR?"*), the band shows that question (**?**) and turns the options Claude offered into the choices, with Claude's own recommendation marked with the Claude icon. A single picked reply is sent as it is.
 
@@ -18,6 +18,8 @@ The same band, drawn as text:
 [ ] Update the README
 [✓] ★ Add logout
 [ ] ◎ Take the login flow to done: tests, docs and a release
+
+[ Add your own words…                                                        ]
 ```
 
 The suggested steps follow the language of your request.

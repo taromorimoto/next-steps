@@ -583,3 +583,37 @@ test('a question with several replies Claude listed checks and marks only one', 
   expect((await band.find({ type: 'Button', key: 'send' }))?.props.label).toBe('Lähetä valitut (1)')
   await band.unmount()
 })
+
+test('the band\'s own field adds the person\'s words to the picked steps, or sends them alone', { options: { language: 'fi' } }, async ($, on) => {
+  const clock = mock.clock(on)
+  const submitted: string[] = []
+  on('turn.complete', () => ({ text: '' }))
+  on('ui.place', () => ({ value: { isPlaced: false, reason: 'no attached surface draws placed rows yet' } }))
+  on('model.fork', () => ({
+    value: { isAnswered: true, text: '{"goal": "Julkaise", "steps": [{"step": "Aja testit", "recommended": true}, {"step": "Julkaise"}]}', usage: USAGE },
+  }))
+  on('prompt.submit', (_, e) => {
+    submitted.push(e.text)
+    return { text: e.text }
+  })
+  await finishTurn($)
+  await clock.settle()
+
+  let band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
+  expect((await band.find({ type: 'Input', key: 'note' }))?.props.placeholder).toBe('Lisää omin sanoin…')
+  // Typed, then sent with the button: the words follow the picked step.
+  await band.input({ key: 'note', text: 'Käytä stagingia ensin', kind: 'change' })
+  await band.press({ key: 'send' })
+  expect(submitted.at(-1)).toBe('Aja testit\n\nKäytä stagingia ensin')
+  await band.unmount()
+
+  // Next turn: nothing picked, Enter in the field sends the words alone, and the field starts empty.
+  await finishTurn($, { turnId: 't2' })
+  await clock.settle()
+  band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
+  expect((await band.find({ type: 'Input', key: 'note' }))?.props.value).toBe('')
+  await band.press({ key: 'step-0' })
+  await band.input({ key: 'note', text: 'Tee jotain muuta' })
+  expect(submitted.at(-1)).toBe('Tee jotain muuta')
+  await band.unmount()
+})

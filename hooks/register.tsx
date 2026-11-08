@@ -9,6 +9,7 @@ const isHidden = atom({ plugin: 'next-steps', key: 'isHidden' } as const, true)
 const durations = atom({ plugin: 'next-steps', key: 'durations' } as const, {})
 const goal = atom({ plugin: 'next-steps', key: 'goal' } as const, null)
 const lastRequest = atom({ plugin: 'next-steps', key: 'lastRequest' } as const, '')
+const note = atom({ plugin: 'next-steps', key: 'note' } as const, '')
 
 const MAX_ROWS = 200
 const MAX_STEPS = 5
@@ -40,6 +41,7 @@ const STRINGS = {
     close: 'Close',
     doTheseNext: 'Do these next:',
     byClaude: 'Claude recommends this',
+    notePlaceholder: 'Add your own words…',
   },
   fi: {
     done: 'Valmis',
@@ -49,6 +51,7 @@ const STRINGS = {
     close: 'Sulje',
     doTheseNext: 'Tee seuraavaksi nämä:',
     byClaude: 'Clauden suositus',
+    notePlaceholder: 'Lisää omin sanoin…',
   },
 } as const
 
@@ -229,7 +232,10 @@ Write the goal, the question and the steps in the same language as the request.
 
 ${ASK}`
 
-type Elements = Pick<ElementTable, 'Box' | 'Button' | 'Text'> & { Svg?: ElementTable<'desktop'>['Svg'] }
+type Elements = Pick<ElementTable, 'Box' | 'Button' | 'Text'> & {
+  Svg?: ElementTable<'desktop'>['Svg']
+  Input?: ElementTable<'desktop'>['Input']
+}
 
 /** Below this many columns the buttons go on a row of their own, above the goal. */
 const NARROW_COLUMNS = 80
@@ -288,7 +294,7 @@ const drawSummary = async (
   columns?: number,
 ) => {
   const t: Strings = STRINGS[lang]
-  const { Box, Button, Text, Svg } = ui
+  const { Box, Button, Text, Svg, Input } = ui
   const picked = await read($, selected)
   const steps = summary.steps
   const recommended = summary.recommended ?? []
@@ -298,14 +304,22 @@ const drawSummary = async (
   const toggle = (i: number) =>
     update($, selected, cur => (cur.includes(i) ? cur.filter(x => x !== i) : [...cur, i].sort((a, b) => a - b)))
 
-  const send = async () => {
-    if (steps === null || picked.length === 0) return
-    const chosen = picked.map(i => steps[i]).filter((s): s is string => s !== undefined)
-    const text =
-      chosen.length === 1
-        ? chosen[0]!
-        : `${t.doTheseNext}\n${chosen.map((s, n) => `${n + 1}. ${s}`).join('\n')}`
+  const typed = await read($, note)
+
+  const send = async (written: string = typed) => {
+    const chosen = picked.map(i => steps?.[i]).filter((s): s is string => s !== undefined)
+    const own = written.trim()
+    if (chosen.length === 0 && own.length === 0) return
+    const list =
+      chosen.length === 0
+        ? ''
+        : chosen.length === 1
+          ? chosen[0]!
+          : `${t.doTheseNext}\n${chosen.map((s, n) => `${n + 1}. ${s}`).join('\n')}`
+    // The person's own words go last, after the picked steps.
+    const text = [list, own].filter(part => part.length > 0).join('\n\n')
     await update($, isHidden, () => true)
+    await update($, note, () => '')
     await $.prompt.submit({ text, asUser: true })
   }
 
@@ -323,12 +337,12 @@ const drawSummary = async (
 
   const buttons = (
     <Box flexDirection="row" columnGap={1} flexShrink={0} justifyContent="flex-end">
-      {stepList.length > 0 ? (
+      {stepList.length > 0 || typed.trim().length > 0 ? (
         <Button
           key="send"
           label={picked.length > 0 ? `${t.send} (${picked.length})` : t.send}
           variant="primary"
-          onPress={send}
+          onPress={() => send()}
         />
       ) : null}
       <Button key="dismiss" label={t.close} onPress={() => update($, isHidden, () => true)} />
@@ -432,6 +446,19 @@ const drawSummary = async (
           })}
         </Box>
       )}
+      {/* Room for the person's own words, sent after the picked steps; Enter sends. */}
+      {Input !== undefined ? (
+        <Box marginTop="sm">
+          <Input
+            key="note"
+            placeholder={t.notePlaceholder}
+            value={typed}
+            submitLabel={t.send}
+            onInput={value => void update($, note, () => value)}
+            onSubmit={value => void send(value)}
+          />
+        </Box>
+      ) : null}
     </Box>
   )
 }
@@ -550,6 +577,7 @@ export const register: Register = (on, options) => {
     const lang = setting !== 'auto' ? setting : detectLang(requestText, locale)
     await update($, last, () => ({ turnId, ms: e.durationMs, steps: null, isPlaced: false, request, answer, lang }))
     await update($, selected, () => [])
+    await update($, note, () => '')
     await update($, isHidden, () => false)
     await update($, durations, cur => {
       const entries = Object.entries(cur).slice(-(MAX_ROWS - 1))

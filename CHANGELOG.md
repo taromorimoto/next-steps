@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.0 – unreleased
+
+- A free-text field under the steps: your own words are sent after the picked steps, or alone when none is picked. Enter sends. (Not in the mobile app, which draws no fields yet.)
+
 ## 0.11.1 – unreleased
 
 - A question's replies get Claude's mark on one reply at most, and only one starts checked: listing options is no longer read as recommending them all.
