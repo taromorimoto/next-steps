@@ -15,6 +15,8 @@ export type Summary = {
   lang?: 'en' | 'fi'
   /** The session's goal as found for this turn. */
   goal?: string | null
+  /** The question the assistant ended its turn with, if it did; the steps are then replies to it. */
+  question?: string | null
   answer?: string
 }
 

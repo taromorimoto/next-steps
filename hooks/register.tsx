@@ -126,11 +126,14 @@ export const parseSteps = (text: string): ParsedSteps => {
   }
 }
 
-export type Suggestion = ParsedSteps & { goal: string | null }
+export type Suggestion = ParsedSteps & { goal: string | null; question: string | null }
+
+const textOrNull = (value: unknown): string | null =>
+  typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
 
 /**
- * Pulls `{ "goal": "...", "steps": [...] }` out of a model reply; a bare steps
- * array (no goal) is taken too.
+ * Pulls `{ "goal": "...", "question": "..." | null, "steps": [...] }` out of a
+ * model reply; a bare steps array (no goal, no question) is taken too.
  */
 export const parseSuggestion = (text: string): Suggestion => {
   const start = text.indexOf('{')
@@ -139,15 +142,14 @@ export const parseSuggestion = (text: string): Suggestion => {
     try {
       const parsed: unknown = JSON.parse(text.slice(start, end + 1))
       if (parsed !== null && typeof parsed === 'object' && Array.isArray((parsed as { steps?: unknown }).steps)) {
-        const o = parsed as { goal?: unknown; steps: unknown[] }
-        const goalText = typeof o.goal === 'string' && o.goal.trim().length > 0 ? o.goal.trim() : null
-        return { goal: goalText, ...parseSteps(JSON.stringify(o.steps)) }
+        const o = parsed as { goal?: unknown; question?: unknown; steps: unknown[] }
+        return { goal: textOrNull(o.goal), question: textOrNull(o.question), ...parseSteps(JSON.stringify(o.steps)) }
       }
     } catch {
       // Fall through to a bare array.
     }
   }
-  return { goal: null, ...parseSteps(text) }
+  return { goal: null, question: null, ...parseSteps(text) }
 }
 
 const clip = (text: string, max: number) =>
@@ -158,17 +160,22 @@ const goalLine = (previousGoal: string | null) =>
     ? ''
     : `The goal noted so far: "${previousGoal}". Keep it, word for word, unless the conversation has clearly moved on to something else.`
 
-const ASK = `Mark as recommended the steps you would advise doing next (at least one, usually one to three); leave optional or speculative ones unmarked.
+/** When the assistant ended on a question, the steps are its answers. */
+const QUESTION = `If the assistant's last turn ended by asking the user something (a question, a choice between options, a request for a go-ahead or approval, whether in its text or in a question put to the user through a tool, such as a question box with answer buttons), set "question" to that question, short (max ~15 words). The steps are then the replies the user could send: first the options the assistant itself offered, in its own words, shortened; then at most two other sensible replies. Each reply is short and says what to do, so it reads well sent alone (e.g. "Yes, fix it here" or "Use option B: a pane"). Otherwise set "question" to null.`
 
-Reply with only JSON: {"goal": "...", "steps": [{"step": "...", "recommended": true}, ...]}`
+const ASK = `Mark as recommended the steps you would advise doing next (at least one, usually one to three); leave optional or speculative ones unmarked. For a question, mark the reply the assistant recommended (or the one you would pick), and only one when the options exclude each other.
+
+Reply with only JSON: {"goal": "...", "question": "..." or null, "steps": [{"step": "...", "recommended": true}, ...]}`
 
 /** Asked of a fork of the session's own transcript: it knows the whole conversation. */
 const forkPrompt = (previousGoal: string | null) => `Step outside the conversation for a moment: do not continue the work, call no tools, and do not address the user.
 
 1. In one short sentence (max ~15 words), state the overall goal of this whole session: what the user is ultimately trying to achieve, not just their last message. ${goalLine(previousGoal)}
-2. Suggest 3 to ${MAX_STEPS} concrete next steps the user might want the assistant to do next, each one short imperative sentence (max ~12 words), each one moving toward that goal. Do not suggest what is already done.
+2. Suggest 3 to ${MAX_STEPS} concrete next steps the user might want the assistant to do next, each one short imperative sentence (max ~12 words), each one moving toward that goal (or, when the turn ended on a question, 2 to ${MAX_STEPS} replies to it, as below). Do not suggest what is already done.
 
-Write the goal and the steps in the language the user writes in.
+${QUESTION}
+
+Write the goal, the question and the steps in the language the user writes in.
 
 ${ASK}`
 
@@ -184,9 +191,11 @@ ${clip(answer, 8000)}
 </final_answer>
 
 1. In one short sentence (max ~15 words), state the overall goal the user is working toward. ${goalLine(previousGoal)}
-2. Suggest 3 to ${MAX_STEPS} concrete next steps the user might want the assistant to do next, each one short imperative sentence (max ~12 words), each one moving toward that goal. Do not suggest things the answer says are already done.
+2. Suggest 3 to ${MAX_STEPS} concrete next steps the user might want the assistant to do next, each one short imperative sentence (max ~12 words), each one moving toward that goal (or, when the turn ended on a question, 2 to ${MAX_STEPS} replies to it, as below). Do not suggest things the answer says are already done.
 
-Write the goal and the steps in the same language as the request.
+${QUESTION}
+
+Write the goal, the question and the steps in the same language as the request.
 
 ${ASK}`
 
@@ -272,6 +281,13 @@ const drawSummary = async (
       <Button key="dismiss" label={t.close} onPress={() => update($, isHidden, () => true)} />
     </Box>
   )
+  const questionText =
+    summary.question != null && summary.question.length > 0 ? (
+      <Text wrap="wrap">
+        <Text color="warning" weight="semibold">? </Text>
+        {summary.question}
+      </Text>
+    ) : null
   const goalText =
     sessionGoal !== null ? (
       <Text weight="semibold" wrap="wrap">
@@ -295,6 +311,8 @@ const drawSummary = async (
           {buttons}
         </Box>
       )}
+      {/* Claude ended on a question: the steps below are the replies it offered. */}
+      {steps !== null && stepList.length > 0 && questionText !== null ? <Box marginTop="sm">{questionText}</Box> : null}
       {steps === null ? (
         <Text dimColor>{t.loading}</Text>
       ) : stepList.length === 0 ? null : (
@@ -356,7 +374,7 @@ const drawSummary = async (
 
 const STEPS_TIMEOUT_MS = 90_000
 
-const NONE: Suggestion = { goal: null, steps: [], recommended: [] }
+const NONE: Suggestion = { goal: null, question: null, steps: [], recommended: [] }
 
 /**
  * Finds the session's goal and goal-aligned steps for one turn and stores them:
@@ -406,11 +424,12 @@ const generateSteps = async (
           steps: parsed.steps,
           recommended: parsed.recommended,
           goal: parsed.goal ?? cur.goal,
+          question: parsed.question,
           // On "auto" the steps decide when they can: they are written in the conversation's
           // language, while the request may be short, pasted, or the band's own English message.
           lang:
             isAutoLang && parsed.steps.length > 0
-              ? (guessLang([parsed.goal ?? '', ...parsed.steps].join(' ')) ?? cur.lang)
+              ? (guessLang([parsed.goal ?? '', parsed.question ?? '', ...parsed.steps].join(' ')) ?? cur.lang)
               : cur.lang,
         }
       : cur,

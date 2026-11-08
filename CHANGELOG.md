@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.0 – unreleased
+
+- When Claude ends a task with a question, the band shows the question and offers the replies Claude suggested as the choices, its recommendation starred, instead of generic next steps. This covers a question in Claude's text and one asked through a question box.
+
 ## 0.9.2 – unreleased
 
 - On `auto`, the language of the suggested steps decides the labels and the "Do these next:" line, so a Finnish conversation no longer gets English after a short, pasted or English-looking prompt.

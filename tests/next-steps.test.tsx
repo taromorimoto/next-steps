@@ -445,3 +445,52 @@ test('the step text toggles the step too, wraps into lines, and lights the row o
   expect(JSON.stringify(await band.drawn())).toContain('rgba(127, 127, 127, 0.16)')
   await band.unmount()
 })
+
+test('when Claude ends on a question, the band shows it with the replies Claude offered', { options: { language: 'fi' } }, async ($, on) => {
+  const clock = mock.clock(on)
+  const forkPrompts: string[] = []
+  const submitted: string[] = []
+  on('turn.complete', () => ({ text: '' }))
+  on('ui.place', () => ({ value: { isPlaced: false, reason: 'no attached surface draws placed rows yet' } }))
+  on('model.fork', (_, e) => {
+    forkPrompts.push(e.prompt)
+    return {
+      value: {
+        isAnswered: true,
+        text: '{"goal": "Paranna next-steps-palkkia", "question": "Kumpi ulkoasu otetaan käyttöön?", "steps": [{"step": "Ota käyttöön paneeli", "recommended": true}, {"step": "Ota käyttöön palkki", "recommended": false}]}',
+        usage: USAGE,
+      },
+    }
+  })
+  on('prompt.submit', (_, e) => {
+    submitted.push(e.text)
+    return { text: e.text }
+  })
+
+  await finishTurn($)
+  await clock.settle()
+  expect(forkPrompts[0]).toContain('"question"')
+
+  const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
+  expect((await band.find({ type: 'Text', text: /Kumpi ulkoasu/ }))?.text).toBe('? Kumpi ulkoasu otetaan käyttöön?')
+  expect(await stepRow(band, 0)).toBe('☑ ★ Ota käyttöön paneeli')
+  expect(await stepRow(band, 1)).toBe('☐ Ota käyttöön palkki')
+  // One reply goes out as it is, with no "do these next" line around it.
+  await band.press({ key: 'send' })
+  expect(submitted.at(-1)).toBe('Ota käyttöön paneeli')
+  await band.unmount()
+})
+
+test('a turn that ends without a question shows no question line', { options: { language: 'en' } }, async ($, on) => {
+  const clock = mock.clock(on)
+  on('turn.complete', () => ({ text: '' }))
+  on('ui.place', () => ({ value: { isPlaced: false, reason: 'no attached surface draws placed rows yet' } }))
+  on('model.fork', () => ({
+    value: { isAnswered: true, text: '{"goal": "Ship it", "question": null, "steps": [{"step": "Release", "recommended": true}]}', usage: USAGE },
+  }))
+  await finishTurn($)
+  await clock.settle()
+  const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
+  expect(await band.find({ type: 'Text', text: /^\? / })).toBeUndefined()
+  await band.unmount()
+})

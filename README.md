@@ -5,6 +5,8 @@ A Claude Code mod that shows, every time Claude finishes a task:
 - **the goal of the session**, as Opus reads it from the whole conversation, kept stable from task to task, and
 - **3–5 suggested next steps** that move toward that goal. The steps Opus recommends are starred (★) and already checked. Pick any combination and press **Send selected** to send them as your next prompt.
 
+When Claude ends a task with a question (*"Should I fix this here or in a new PR?"*), the band shows that question (**?**) and turns the options Claude offered into the choices, with Claude's own recommendation starred. A single picked reply is sent as it is.
+
 ![The next-steps band in the Claude desktop app, labels in Finnish](docs/band.png)
 
 The same band, drawn as text:
