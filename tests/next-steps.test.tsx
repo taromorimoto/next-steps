@@ -634,4 +634,17 @@ test('the band\'s own field adds the person\'s words to the picked steps, or sen
   await band.input({ key: String(next!.key), text: 'Tee jotain muuta' })
   expect(submitted.at(-1)).toBe('Tee jotain muuta')
   await band.unmount()
+
+  // Send right after typing sends every letter, not only the first: only the
+  // first one redraws the band, the rest must still reach Send.
+  await finishTurn($, { turnId: 't3' })
+  await clock.settle()
+  band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
+  const third = await band.find({ type: 'Input' })
+  await band.input({ key: String(third!.key), text: 'T', kind: 'change' })
+  await band.input({ key: String(third!.key), text: 'Te', kind: 'change' })
+  await band.input({ key: String(third!.key), text: 'Testi testi', kind: 'change' })
+  await band.press({ key: 'send' })
+  expect(submitted.at(-1)).toBe('Aja testit\n\nTesti testi')
+  await band.unmount()
 })

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.3 – unreleased
+
+- Send now sends all of the text typed in the field, not only its first letter.
+
 ## 0.13.2 – unreleased
 
 - The text field spans the row, starts in the steps' text column, and shows a small ↵ while focused instead of a blank pill.

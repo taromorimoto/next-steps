@@ -318,7 +318,10 @@ const drawSummary = async (
   /** `written`: the field's text as Enter sent it, newer than this drawing's. */
   const send = async (written?: string) => {
     const chosen = picked.map(i => steps?.[i]).filter((s): s is string => s !== undefined)
-    const own = written !== undefined ? written.trim() : isTypedPicked ? typed.trim() : ''
+    // Read the field now, not as this drawing saw it: typing redraws the band
+    // only when the field turns empty or not, so `typed` can be the first letter.
+    const isNowPicked = await read($, isNotePicked)
+    const own = written !== undefined ? written.trim() : isNowPicked ? noteText.trim() : ''
     if (chosen.length === 0 && own.length === 0) return
     const list =
       chosen.length === 0
