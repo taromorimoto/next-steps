@@ -5,6 +5,8 @@ export type Summary = {
   ms: number
   /** Suggested next steps; null while they are still being generated. */
   steps: readonly string[] | null
+  /** Each step's explaining sentence, by index, drawn small under its short title; null where there is none. */
+  details?: readonly (string | null)[]
   /** Indexes into `steps` the model recommends; drawn with a star and checked at first. */
   recommended?: readonly number[]
   /** Indexes into `steps` that Claude itself proposed or recommended in the conversation; drawn with the Claude icon and checked at first. */

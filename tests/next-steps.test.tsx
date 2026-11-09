@@ -7,7 +7,7 @@ const row = (id: string) =>
     props: { id, plugin: 'next-steps' },
   }) as const
 
-/** A step as the band draws it: ☑ for a picked checkbox button, ☐ otherwise, then the text lines and its mark. */
+/** A step as the band draws it: ☑ for a picked checkbox button, ☐ otherwise, then its title, its mark and its detail. */
 const stepRow = async (ui: any, i: number) => {
   const box = await ui.find({ type: 'Button', key: `step-${i}` })
   const find = (node: any): any =>
@@ -26,7 +26,8 @@ const stepRow = async (ui: any, i: number) => {
     }
     // An icon reads as its alt text; an empty one only keeps the column.
     if (node.type === 'Svg' && String(node.props?.alt ?? '').trim().length > 0) parts.push(node.props.alt === '★' ? '★' : '✻')
-    if (node.type === 'Button' && String(node.props?.key).startsWith(`text-${i}-`)) parts.push(node.props.label)
+    const key = String(node.props?.key)
+    if (node.type === 'Button' && (key === `text-${i}` || key.startsWith(`text-${i}-`)) && node.props.label !== undefined) parts.push(node.props.label)
     for (const child of node.children ?? []) walk(child)
   }
   walk(find(await ui.drawn()))
@@ -420,55 +421,75 @@ test('the step rows draw on every surface, with hotkeys on the terminal alone', 
   }
 })
 
-test('the step text toggles the step too, wraps, and lights the whole row on hover', { options: { language: 'en' } }, async ($, on) => {
+test('a step is a short title that toggles it, with a smaller detail under it, and lights the whole row on hover', { options: { language: 'en' } }, async ($, on) => {
   const clock = mock.clock(on)
+  const submitted: string[] = []
   on('turn.complete', () => ({ text: '' }))
   on('ui.place', () => ({ value: { isPlaced: false, reason: 'no attached surface draws placed rows yet' } }))
   on('model.fork', () => ({
     value: {
       isAnswered: true,
-      text: '{"goal": "G", "steps": [{"step": "Package the body, lid and rubber STL files into a zip for a friend", "recommended": false}]}',
+      text: JSON.stringify({
+        goal: 'G',
+        steps: [
+          { step: 'Package the files', detail: 'Zip the body, lid and rubber STL files so a friend can print them' },
+          { step: 'Package the body, lid and rubber STL files into a zip for a friend' },
+        ],
+      }),
       usage: USAGE,
     },
   }))
+  on('prompt.submit', (_, e) => {
+    submitted.push(e.text)
+    return { text: e.text }
+  })
 
   await finishTurn($)
   await clock.settle()
-
+  // The fork is asked for short titles with a detail each.
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: { ...BAND_PROPS, bodyColumns: 50 } })
-  const rowOf = (node: any): any =>
+  const rowOf = (node: any, key: string): any =>
     node === null || typeof node !== 'object'
       ? undefined
-      : node.props?.key === 'row-0'
+      : node.props?.key === key
         ? node
-        : (node.children ?? []).map(rowOf).find((x: any) => x !== undefined)
-  const row = rowOf(await band.drawn())
+        : (node.children ?? []).map((c: any) => rowOf(c, key)).find((x: any) => x !== undefined)
+  const row = rowOf(await band.drawn(), 'row-0')
   // A step with no mark is its checkbox and its text alone: nothing between them.
   expect(row.children.map((c: any) => c.type)).toEqual(['Button', 'Box'])
-  // On the desktop the whole step is one button, its text wrapping inside it, so
-  // the pill the desktop draws under the pointer covers the whole step, not a line.
-  const textButtons = row.children[1].children
-  expect(textButtons.map((b: any) => [b.type, b.props.key])).toEqual([['Button', 'text-0']])
-  const text = textButtons[0].children[0]
-  expect(text.type).toBe('Text')
-  expect(text.props.wrap).toBe('wrap')
-  expect(await stepRow(band, 0)).toBe('☐ Package the body, lid and rubber STL files into a zip for a friend')
+  // The title is one button on one line, so the desktop's pill under the pointer covers all of it.
+  const title = rowOf(row, 'text-0')
+  expect(title.type).toBe('Button')
+  expect(title.props.label).toBe('Package the files')
+  // The detail is smaller, dim text under the title, wrapping as it needs.
+  const texts: any[] = []
+  const collectTexts = (node: any) => {
+    if (node === null || typeof node !== 'object') return
+    if (node.type === 'Text') texts.push(node)
+    for (const child of node.children ?? []) collectTexts(child)
+  }
+  collectTexts(row)
+  const detail = texts.find(x => x.props?.size === 'caption')
+  expect(detail.type).toBe('Text')
+  expect(detail.props).toMatchObject({ size: 'caption', dimColor: true, wrap: 'wrap' })
+  expect(await stepRow(band, 0)).toBe('☐ Package the files Zip the body, lid and rubber STL files so a friend can print them')
   // A dim step lights, its number too, while the pointer is anywhere on the row.
-  expect(text.hover).toEqual({ dimColor: false })
+  expect(title.hover).toEqual({ dimColor: false })
   expect(row.children[0].hover).toEqual({ dimColor: false })
-  // A press on the text toggles the step as the checkbox does.
+  expect(JSON.stringify(row)).toContain('rgba(127, 127, 127, 0.16)')
+  // The terminal splits a title too long for the line into lines that together hold it all.
+  const term = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'terminal', props: { ...BAND_PROPS, bodyColumns: 50 } })
+  const lines = (await term.findAll({ type: 'Button' })).filter((b: { key?: string }) => b.key?.startsWith('text-1-'))
+  expect(lines.length).toBeGreaterThan(1)
+  expect(await stepRow(term, 1)).toBe('☐ Package the body, lid and rubber STL files into a zip for a friend')
+  await term.unmount()
+  // A press on the title toggles the step as the checkbox does; Send sends the title with its detail.
   await band.press({ key: 'text-0' })
   expect((await stepRow(band, 0)).startsWith('☑ ')).toBe(true)
-  // The row lights under the pointer.
-  expect(JSON.stringify(await band.drawn())).toContain('rgba(127, 127, 127, 0.16)')
+  await band.press({ key: 'send' })
+  expect(submitted.at(-1)).toBe('1. Package the files – Zip the body, lid and rubber STL files so a friend can print them')
   await band.unmount()
 
-  // The terminal draws no pill: there the step is split into lines that together hold it all.
-  const term = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'terminal', props: { ...BAND_PROPS, bodyColumns: 50 } })
-  const lines = (await term.findAll({ type: 'Button' })).filter((b: { key?: string }) => b.key?.startsWith('text-0-'))
-  expect(lines.length).toBeGreaterThan(1)
-  expect(await stepRow(term, 0)).toBe('☑ Package the body, lid and rubber STL files into a zip for a friend')
-  await term.unmount()
 })
 
 test('when Claude ends on a question, the band shows it with the replies Claude offered', { options: { language: 'fi' } }, async ($, on) => {
@@ -574,6 +595,8 @@ test('without a question, the last steps can be milestones toward the goal, mark
   await finishTurn($)
   await clock.settle()
   expect(forkPrompts[0]).toContain('"milestone": true')
+  // Each step is asked for as a short title with a detail sentence.
+  expect(forkPrompts[0]).toContain('"detail": "one sentence"')
 
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
   expect(await stepRow(band, 0)).toBe('☑ Add a logout test ★')

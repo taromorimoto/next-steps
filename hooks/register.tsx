@@ -104,14 +104,21 @@ export const guessLang = (text: string): Lang | undefined => {
 export const detectLang = (text: string, locale?: string): Lang =>
   guessLang(text) ?? (locale !== undefined && locale.toLowerCase().startsWith('fi') ? 'fi' : 'en')
 
-export type ParsedSteps = { steps: string[]; recommended: number[]; byClaude: number[]; milestones: number[] }
+export type ParsedSteps = {
+  steps: string[]
+  /** A step's explaining sentence, drawn small under its title; null where there is none. */
+  details: (string | null)[]
+  recommended: number[]
+  byClaude: number[]
+  milestones: number[]
+}
 
 /**
  * Pulls the steps out of a model reply, tolerating code fences and prose around the JSON.
- * Takes `[{ "step": "...", "recommended": true }, ...]`, or plain strings (none recommended).
+ * Takes `[{ "step": "...", "detail": "...", "recommended": true }, ...]`, or plain strings (none recommended).
  */
 export const parseSteps = (text: string): ParsedSteps => {
-  const none: ParsedSteps = { steps: [], recommended: [], byClaude: [], milestones: [] }
+  const none: ParsedSteps = { steps: [], details: [], recommended: [], byClaude: [], milestones: [] }
   const start = text.indexOf('[')
   const end = text.lastIndexOf(']')
   if (start < 0 || end <= start) return none
@@ -120,11 +127,12 @@ export const parseSteps = (text: string): ParsedSteps => {
     if (!Array.isArray(parsed)) return none
     const items = parsed
       .map(item => {
-        if (typeof item === 'string') return { step: item.trim(), recommended: false, byClaude: false, milestone: false }
+        if (typeof item === 'string') return { step: item.trim(), detail: null, recommended: false, byClaude: false, milestone: false }
         if (item !== null && typeof item === 'object' && typeof (item as { step?: unknown }).step === 'string') {
-          const o = item as { step: string; recommended?: unknown; claude?: unknown; milestone?: unknown }
+          const o = item as { step: string; detail?: unknown; recommended?: unknown; claude?: unknown; milestone?: unknown }
           return {
             step: o.step.trim(),
+            detail: typeof o.detail === 'string' && o.detail.trim().length > 0 ? o.detail.trim() : null,
             recommended: o.recommended === true,
             byClaude: o.claude === true,
             milestone: o.milestone === true,
@@ -132,10 +140,11 @@ export const parseSteps = (text: string): ParsedSteps => {
         }
         return null
       })
-      .filter((x): x is { step: string; recommended: boolean; byClaude: boolean; milestone: boolean } => x !== null && x.step.length > 0)
+      .filter((x): x is { step: string; detail: string | null; recommended: boolean; byClaude: boolean; milestone: boolean } => x !== null && x.step.length > 0)
       .slice(0, MAX_STEPS)
     return {
       steps: items.map(x => x.step),
+      details: items.map(x => x.detail),
       recommended: items.flatMap((x, i) => (x.recommended ? [i] : [])),
       byClaude: items.flatMap((x, i) => (x.byClaude ? [i] : [])),
       milestones: items.flatMap((x, i) => (x.milestone ? [i] : [])),
@@ -192,22 +201,22 @@ const goalLine = (previousGoal: string | null) =>
     : `The goal noted so far: "${previousGoal}". Keep it, word for word, unless the conversation has clearly moved on to something else.`
 
 /** When the assistant ended on a question, the steps are its answers. */
-const QUESTION = `If the assistant's last turn ended by asking the user something (a question, a choice between options, a request for a go-ahead or approval, whether in its text or in a question put to the user through a tool, such as a question box with answer buttons), set "question" to that question, short (max ~15 words). The steps are then the replies the user could send: first the options the assistant itself offered, in its own words, shortened; then at most two other sensible replies. Each reply is short and says what to do, so it reads well sent alone (e.g. "Yes, fix it here" or "Use option B: a pane"). Otherwise set "question" to null.`
+const QUESTION = `If the assistant's last turn ended by asking the user something (a question, a choice between options, a request for a go-ahead or approval, whether in its text or in a question put to the user through a tool, such as a question box with answer buttons), set "question" to that question, short (max ~15 words). The steps are then the replies the user could send: first the options the assistant itself offered, in its own words, shortened; then at most two other sensible replies. Each reply's title is short and says what to do (e.g. "Yes, fix it here" or "Option B: a pane"), its detail what that choice means. Otherwise set "question" to null.`
 
 /** Without a question, a step or two hands Claude a larger piece of the goal to drive on its own. */
-const MILESTONES = `When the turn did not end on a question, make one or two of the steps higher-level, listed last and marked "milestone": true: a bigger outcome toward the goal that the assistant could drive on its own across several tasks, choosing the smaller steps itself and stopping only for decisions that are the user's (e.g. "Take the login flow to done: tests, docs and a release"). Keep the other steps concrete.`
+const MILESTONES = `When the turn did not end on a question, make one or two of the steps higher-level, listed last and marked "milestone": true: a bigger outcome toward the goal that the assistant could drive on its own across several tasks, choosing the smaller steps itself and stopping only for decisions that are the user's (e.g. title "Finish the login flow", detail "Tests, docs and a release, with Claude choosing the smaller steps"). Keep the other steps concrete.`
 
 const ASK = `Mark as recommended the steps you would advise doing next (at least one, usually one to three); leave optional or speculative ones unmarked. For a question, mark the reply the assistant recommended (or the one you would pick), and only one when the options exclude each other.
 
 Set "claude": true on a step only when the assistant itself, in the conversation, recommended that very step: said it recommends or prefers it, or offered to do it next. Merely listing an option is not recommending it. For a question, set it on one reply at most: the one the assistant said it recommends (or its primary answer button), never on several replies. Leave it out for steps only you thought of.
 
-Reply with only JSON: {"goal": "...", "question": "..." or null, "steps": [{"step": "...", "recommended": true, "claude": true, "milestone": true}, ...]} (leave out "claude" and "milestone" where they do not apply)`
+Reply with only JSON: {"goal": "...", "question": "..." or null, "steps": [{"step": "short title", "detail": "one sentence", "recommended": true, "claude": true, "milestone": true}, ...]} (leave out "claude" and "milestone" where they do not apply)`
 
 /** Asked of a fork of the session's own transcript: it knows the whole conversation. */
 const forkPrompt = (previousGoal: string | null) => `Step outside the conversation for a moment: do not continue the work, call no tools, and do not address the user.
 
 1. In one short sentence (max ~15 words), state the overall goal of this whole session: what the user is ultimately trying to achieve, not just their last message. ${goalLine(previousGoal)}
-2. Suggest 3 to ${MAX_STEPS} concrete next steps the user might want the assistant to do next, each one short imperative sentence (max ~12 words), each one moving toward that goal (or, when the turn ended on a question, 2 to ${MAX_STEPS} replies to it, as below). Do not suggest what is already done.
+2. Suggest 3 to ${MAX_STEPS} concrete next steps the user might want the assistant to do next, each one a short title of 2 to 5 words that fits on one line (an imperative, max ~40 characters) and a "detail": one short sentence (max ~20 words) saying what exactly it means or why; each one moving toward that goal (or, when the turn ended on a question, 2 to ${MAX_STEPS} replies to it, as below). Do not suggest what is already done.
 
 ${QUESTION}
 
@@ -229,13 +238,13 @@ ${clip(answer, 8000)}
 </final_answer>
 
 1. In one short sentence (max ~15 words), state the overall goal the user is working toward. ${goalLine(previousGoal)}
-2. Suggest 3 to ${MAX_STEPS} concrete next steps the user might want the assistant to do next, each one short imperative sentence (max ~12 words), each one moving toward that goal (or, when the turn ended on a question, 2 to ${MAX_STEPS} replies to it, as below). Do not suggest things the answer says are already done.
+2. Suggest 3 to ${MAX_STEPS} concrete next steps the user might want the assistant to do next, each one a short title of 2 to 5 words that fits on one line (an imperative, max ~40 characters) and a "detail": one short sentence (max ~20 words) saying what exactly it means or why; each one moving toward that goal (or, when the turn ended on a question, 2 to ${MAX_STEPS} replies to it, as below). Do not suggest things the answer says are already done.
 
 ${QUESTION}
 
 ${MILESTONES}
 
-Write the goal, the question and the steps in the same language as the request.
+Write the goal, the question, the steps and their details in the same language as the request.
 
 ${ASK}`
 
@@ -306,6 +315,7 @@ const drawSummary = async (
   const recommended = summary.recommended ?? []
   const byClaude = summary.byClaude ?? []
   const milestones = summary.milestones ?? []
+  const details = summary.details ?? []
 
   const toggle = (i: number) =>
     update($, selected, cur => (cur.includes(i) ? cur.filter(x => x !== i) : [...cur, i].sort((a, b) => a - b)))
@@ -320,7 +330,9 @@ const drawSummary = async (
     // message is the row the person checked.
     const chosen = picked.flatMap(i => {
       const step = steps?.[i]
-      return step === undefined ? [] : [{ n: i + 1, text: step }]
+      const detail = details[i]
+      // The short title with its detail, so Claude reads what was meant.
+      return step === undefined ? [] : [{ n: i + 1, text: detail ? `${step} – ${detail}` : step }]
     })
     // Read the field now, not as this drawing saw it: typing redraws the band
     // only when the field turns empty or not, so `typed` can be the first letter.
@@ -407,12 +419,35 @@ const drawSummary = async (
             const isRecommended = recommended.includes(i)
             const isClaudes = byClaude.includes(i)
             // The whole text toggles the step too. A milestone, a larger piece of the goal for Claude to drive, leads with the goal's mark.
-            const lines = wrapWords(milestones.includes(i) ? `◎ ${step}` : step, textColumns)
+            const title = milestones.includes(i) ? `◎ ${step}` : step
+            const detail = details[i] ?? null
+            // The title is short, kept to one line on the desktop, where a button's
+            // label never wraps; the terminal splits a long one into lines by hand.
+            const lines = wrapWords(title, textColumns)
+            // Claude's own pick wears its mark, the band's a star, after the title:
+            // every title starts right after its checkbox, and no mark leaves no gap.
+            const mark =
+              isClaudes || isRecommended ? (
+                hasPointer && Svg !== undefined ? (
+                  <Svg
+                    key={`mark-${i}`}
+                    source={isClaudes ? CLAUDE_ICON : STAR_ICON}
+                    alt={isClaudes ? t.byClaude : '★'}
+                    width={ICON_SIZE}
+                    height={ICON_SIZE}
+                  />
+                ) : isClaudes ? (
+                  <Text color="claude">✻</Text>
+                ) : (
+                  <Text color="warning">★</Text>
+                )
+              ) : null
             return (
               <Box
                 key={`row-${i}`}
                 flexDirection="row"
-                alignItems="center"
+                // With a detail under it, the checkbox sits by the title.
+                alignItems={detail === null ? 'center' : 'flex-start'}
                 columnGap={1}
                 // Padded so the wash under the pointer covers the whole row,
                 // the taller checkbox included, not a strip behind the text.
@@ -431,47 +466,40 @@ const drawSummary = async (
                   onPress={() => toggle(i)}
                 />
                 <Box flexDirection="column" flexShrink={1}>
-                  {hasPointer ? (
-                    // One button for the whole step, its text wrapping inside it: a
-                    // desktop lights the button under the pointer as a pill, and a
-                    // button per line lit one line of the step alone.
-                    <Button key={`text-${i}`} plain dimColor={!isPicked} onPress={() => toggle(i)}>
-                      <Text wrap="wrap" dimColor={!isPicked} hover={!isPicked ? { dimColor: false } : undefined}>
-                        {milestones.includes(i) ? `◎ ${step}` : step}
-                      </Text>
-                    </Button>
-                  ) : (
-                    // The terminal draws no pill: a step is split into lines by hand,
-                    // each a chrome-less button, since a label never wraps there.
-                    lines.map((line, n) => (
+                  <Box flexDirection="row" alignItems="center" columnGap={1}>
+                    {hasPointer ? (
+                      // One line, one button: the pill the desktop draws under the
+                      // pointer covers the whole title.
                       <Button
-                        key={`text-${i}-${n}`}
-                        label={line}
+                        key={`text-${i}`}
+                        label={title}
                         plain
                         dimColor={!isPicked}
+                        hover={!isPicked ? { dimColor: false } : undefined}
                         onPress={() => toggle(i)}
                       />
-                    ))
-                  )}
+                    ) : (
+                      <Box flexDirection="column" flexShrink={1}>
+                        {lines.map((line, n) => (
+                          <Button
+                            key={`text-${i}-${n}`}
+                            label={line}
+                            plain
+                            dimColor={!isPicked}
+                            onPress={() => toggle(i)}
+                          />
+                        ))}
+                      </Box>
+                    )}
+                    {mark}
+                  </Box>
+                  {/* What the step means, in smaller text under it; it wraps freely. */}
+                  {detail !== null ? (
+                    <Text size="caption" dimColor wrap="wrap">
+                      {detail}
+                    </Text>
+                  ) : null}
                 </Box>
-                {/* Claude's own pick wears its mark, the band's a star, after the text:
-                    every step's text starts right after its checkbox, and a step
-                    with no mark leaves no gap. */}
-                {isClaudes || isRecommended ? (
-                  hasPointer && Svg !== undefined ? (
-                    <Svg
-                      key={`mark-${i}`}
-                      source={isClaudes ? CLAUDE_ICON : STAR_ICON}
-                      alt={isClaudes ? t.byClaude : '★'}
-                      width={ICON_SIZE}
-                      height={ICON_SIZE}
-                    />
-                  ) : isClaudes ? (
-                    <Text color="claude">✻</Text>
-                  ) : (
-                    <Text color="warning">★</Text>
-                  )
-                ) : null}
               </Box>
             )
           })}
@@ -524,7 +552,7 @@ const drawSummary = async (
 
 const STEPS_TIMEOUT_MS = 90_000
 
-const NONE: Suggestion = { goal: null, question: null, steps: [], recommended: [], byClaude: [], milestones: [] }
+const NONE: Suggestion = { goal: null, question: null, steps: [], details: [], recommended: [], byClaude: [], milestones: [] }
 
 /**
  * Finds the session's goal and goal-aligned steps for one turn and stores them:
@@ -572,6 +600,7 @@ const generateSteps = async (
       ? {
           ...cur,
           steps: parsed.steps,
+          details: parsed.details,
           recommended: parsed.recommended,
           byClaude: parsed.byClaude,
           milestones: parsed.milestones,

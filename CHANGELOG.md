@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.15.0 – unreleased
+
+- Each step is a short title on one line, the button that picks it, with a smaller dim sentence under it saying what it means. Send sends the title and its detail together. This replaces 0.14.3's wrapping button, which the desktop did not wrap.
+
 ## 0.14.3 – unreleased
 
 - On the desktop a step's text is one button with the text wrapping inside it, so the hover pill covers the whole step instead of the one line under the pointer. The terminal keeps its hand-wrapped lines.
