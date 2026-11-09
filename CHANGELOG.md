@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.3 – unreleased
+
+- On the desktop a step's text is one button with the text wrapping inside it, so the hover pill covers the whole step instead of the one line under the pointer. The terminal keeps its hand-wrapped lines.
+
 ## 0.14.2 – unreleased
 
 - The Claude icon and the star come after a step's text, so every step's text, and the text field, starts right after its checkbox: a step without a mark no longer leaves a gap.

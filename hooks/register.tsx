@@ -406,10 +406,7 @@ const drawSummary = async (
             const isPicked = picked.includes(i)
             const isRecommended = recommended.includes(i)
             const isClaudes = byClaude.includes(i)
-            // A button's label never wraps, so the step is split into lines by
-            // hand, each a chrome-less button that toggles the step: the whole
-            // text is a click target, and none of it is cut short.
-            // A milestone, a larger piece of the goal for Claude to drive, leads with the goal's mark.
+            // The whole text toggles the step too. A milestone, a larger piece of the goal for Claude to drive, leads with the goal's mark.
             const lines = wrapWords(milestones.includes(i) ? `◎ ${step}` : step, textColumns)
             return (
               <Box
@@ -434,19 +431,28 @@ const drawSummary = async (
                   onPress={() => toggle(i)}
                 />
                 <Box flexDirection="column" flexShrink={1}>
-                  {lines.map((line, n) => (
-                    <Button
-                      key={`text-${i}-${n}`}
-                      label={line}
-                      plain
-                      dimColor={!isPicked}
-                      // A dim button lights only under the pointer itself, so a step
-                      // of several lines lit one line at a time: light them all
-                      // while the pointer is anywhere on the row.
-                      hover={hasPointer && !isPicked ? { dimColor: false } : undefined}
-                      onPress={() => toggle(i)}
-                    />
-                  ))}
+                  {hasPointer ? (
+                    // One button for the whole step, its text wrapping inside it: a
+                    // desktop lights the button under the pointer as a pill, and a
+                    // button per line lit one line of the step alone.
+                    <Button key={`text-${i}`} plain dimColor={!isPicked} onPress={() => toggle(i)}>
+                      <Text wrap="wrap" dimColor={!isPicked} hover={!isPicked ? { dimColor: false } : undefined}>
+                        {milestones.includes(i) ? `◎ ${step}` : step}
+                      </Text>
+                    </Button>
+                  ) : (
+                    // The terminal draws no pill: a step is split into lines by hand,
+                    // each a chrome-less button, since a label never wraps there.
+                    lines.map((line, n) => (
+                      <Button
+                        key={`text-${i}-${n}`}
+                        label={line}
+                        plain
+                        dimColor={!isPicked}
+                        onPress={() => toggle(i)}
+                      />
+                    ))
+                  )}
                 </Box>
                 {/* Claude's own pick wears its mark, the band's a star, after the text:
                     every step's text starts right after its checkbox, and a step

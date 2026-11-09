@@ -420,7 +420,7 @@ test('the step rows draw on every surface, with hotkeys on the terminal alone', 
   }
 })
 
-test('the step text toggles the step too, wraps into lines, and lights the row on hover', { options: { language: 'en' } }, async ($, on) => {
+test('the step text toggles the step too, wraps, and lights the whole row on hover', { options: { language: 'en' } }, async ($, on) => {
   const clock = mock.clock(on)
   on('turn.complete', () => ({ text: '' }))
   on('ui.place', () => ({ value: { isPlaced: false, reason: 'no attached surface draws placed rows yet' } }))
@@ -436,37 +436,39 @@ test('the step text toggles the step too, wraps into lines, and lights the row o
   await clock.settle()
 
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: { ...BAND_PROPS, bodyColumns: 50 } })
-  const lines = (await band.findAll({ type: 'Button' })).filter((b: { key?: string }) => b.key?.startsWith('text-0-'))
-  // Wrapped into lines that together hold the whole step, none cut short.
-  expect(lines.length).toBeGreaterThan(1)
-  expect(await stepRow(band, 0)).toBe('☐ Package the body, lid and rubber STL files into a zip for a friend')
-  // A dim step lights all its lines, and its number, while the pointer is
-  // anywhere on the row, not only the line under it.
-  // A Button's hover rides on the drawn element, beside its props, where `find` does not show it.
-  const hovers = new Map<string, unknown>()
-  const collect = (node: unknown): void => {
-    if (node === null || typeof node !== 'object') return
-    const n = node as { type?: string; props?: { key?: string }; hover?: unknown; children?: unknown[] }
-    if (n.type === 'Button' && n.props?.key !== undefined) hovers.set(n.props.key, n.hover)
-    for (const child of n.children ?? []) collect(child)
-  }
-  collect(await band.drawn())
-  // A step with no mark is its checkbox and its text alone: nothing between them.
   const rowOf = (node: any): any =>
     node === null || typeof node !== 'object'
       ? undefined
       : node.props?.key === 'row-0'
         ? node
         : (node.children ?? []).map(rowOf).find((x: any) => x !== undefined)
-  expect(rowOf(await band.drawn()).children.map((c: any) => c.type)).toEqual(['Button', 'Box'])
-  for (const line of lines) expect(hovers.get(String((line as { key?: string }).key))).toEqual({ dimColor: false })
-  expect(hovers.get('step-0')).toEqual({ dimColor: false })
-  // A press on the text, its second line here, toggles the step as the checkbox does.
-  await band.press({ key: 'text-0-1' })
+  const row = rowOf(await band.drawn())
+  // A step with no mark is its checkbox and its text alone: nothing between them.
+  expect(row.children.map((c: any) => c.type)).toEqual(['Button', 'Box'])
+  // On the desktop the whole step is one button, its text wrapping inside it, so
+  // the pill the desktop draws under the pointer covers the whole step, not a line.
+  const textButtons = row.children[1].children
+  expect(textButtons.map((b: any) => [b.type, b.props.key])).toEqual([['Button', 'text-0']])
+  const text = textButtons[0].children[0]
+  expect(text.type).toBe('Text')
+  expect(text.props.wrap).toBe('wrap')
+  expect(await stepRow(band, 0)).toBe('☐ Package the body, lid and rubber STL files into a zip for a friend')
+  // A dim step lights, its number too, while the pointer is anywhere on the row.
+  expect(text.hover).toEqual({ dimColor: false })
+  expect(row.children[0].hover).toEqual({ dimColor: false })
+  // A press on the text toggles the step as the checkbox does.
+  await band.press({ key: 'text-0' })
   expect((await stepRow(band, 0)).startsWith('☑ ')).toBe(true)
   // The row lights under the pointer.
   expect(JSON.stringify(await band.drawn())).toContain('rgba(127, 127, 127, 0.16)')
   await band.unmount()
+
+  // The terminal draws no pill: there the step is split into lines that together hold it all.
+  const term = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'terminal', props: { ...BAND_PROPS, bodyColumns: 50 } })
+  const lines = (await term.findAll({ type: 'Button' })).filter((b: { key?: string }) => b.key?.startsWith('text-0-'))
+  expect(lines.length).toBeGreaterThan(1)
+  expect(await stepRow(term, 0)).toBe('☑ Package the body, lid and rubber STL files into a zip for a friend')
+  await term.unmount()
 })
 
 test('when Claude ends on a question, the band shows it with the replies Claude offered', { options: { language: 'fi' } }, async ($, on) => {
