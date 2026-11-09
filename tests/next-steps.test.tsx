@@ -604,10 +604,14 @@ test('the band\'s own field adds the person\'s words to the picked steps, or sen
   await clock.settle()
 
   let band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
-  expect((await band.find({ type: 'Input', key: 'note' }))?.props.placeholder).toBe('Lisää omin sanoin…')
+  const field = await band.find({ type: 'Input' })
+  expect(field?.props.placeholder).toBe('Lisää omin sanoin…')
+  // No value of its own: a redraw never writes over what is being typed.
+  expect(field?.props.value).toBeUndefined()
   // Typing checks the field's own checkbox; Send then adds the words after the picked step.
   expect((await band.find({ type: 'Button', key: 'note-pick' }))?.props.variant).toBe('secondary')
-  await band.input({ key: 'note', text: 'Käytä stagingia ensin', kind: 'change' })
+  await band.input({ key: String(field!.key), text: 'Käytä', kind: 'change' })
+  await band.input({ key: String(field!.key), text: 'Käytä stagingia ensin', kind: 'change' })
   expect((await band.find({ type: 'Button', key: 'note-pick' }))?.props.variant).toBe('primary')
   expect((await band.find({ type: 'Button', key: 'send' }))?.props.label).toBe('Lähetä valitut (2)')
   // Unchecked, the words stay in the field but are not sent.
@@ -622,9 +626,12 @@ test('the band\'s own field adds the person\'s words to the picked steps, or sen
   await finishTurn($, { turnId: 't2' })
   await clock.settle()
   band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
-  expect((await band.find({ type: 'Input', key: 'note' }))?.props.value).toBe('')
+  // A new turn draws a new, empty field.
+  const next = await band.find({ type: 'Input' })
+  expect(next?.key).not.toBe(field?.key)
+  expect((await band.find({ type: 'Button', key: 'note-pick' }))?.props.variant).toBe('secondary')
   await band.press({ key: 'step-0' })
-  await band.input({ key: 'note', text: 'Tee jotain muuta' })
+  await band.input({ key: String(next!.key), text: 'Tee jotain muuta' })
   expect(submitted.at(-1)).toBe('Tee jotain muuta')
   await band.unmount()
 })

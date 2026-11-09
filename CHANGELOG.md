@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.1 – unreleased
+
+- The text field no longer loses letters or moves the cursor while you type: the band no longer redraws, writing the text back, on every keystroke. Each turn gets a fresh, empty field.
+
 ## 0.13.0 – unreleased
 
 - The checkboxes are numbered (1, 2, 3…, the text field's next in line); a filled one is picked. The terminal keeps ✓, its number shown as the hotkey.

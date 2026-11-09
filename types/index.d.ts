@@ -32,9 +32,7 @@ declare module 'claude-code' {
       selected: readonly number[]
       /** True once the latest row's steps were sent, closed, or a new prompt went in. */
       isHidden: boolean
-      /** What the person typed in the band's own field, sent with the picked steps. */
-      note: string
-      /** Whether the field's words go out with Send; checked by typing, unchecked by hand. */
+      /** Whether the text field's words go out with Send; checked by typing, unchecked by hand. */
       isNotePicked: boolean
       /** Duration of every turn that placed a row, by turn id, so older rows keep theirs. */
       durations: Readonly<Record<string, number>>

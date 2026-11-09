@@ -9,7 +9,13 @@ const isHidden = atom({ plugin: 'next-steps', key: 'isHidden' } as const, true)
 const durations = atom({ plugin: 'next-steps', key: 'durations' } as const, {})
 const goal = atom({ plugin: 'next-steps', key: 'goal' } as const, null)
 const lastRequest = atom({ plugin: 'next-steps', key: 'lastRequest' } as const, '')
-const note = atom({ plugin: 'next-steps', key: 'note' } as const, '')
+/**
+ * The text field's words, kept here and not in state: a state write on every
+ * keystroke redrew the band and wrote the text back into the field, losing
+ * letters typed meanwhile and moving the cursor. The band redraws only when the
+ * field turns empty or not (`isNotePicked`).
+ */
+let noteText = ''
 const isNotePicked = atom({ plugin: 'next-steps', key: 'isNotePicked' } as const, false)
 
 const MAX_ROWS = 200
@@ -305,7 +311,7 @@ const drawSummary = async (
   const toggle = (i: number) =>
     update($, selected, cur => (cur.includes(i) ? cur.filter(x => x !== i) : [...cur, i].sort((a, b) => a - b)))
 
-  const typed = await read($, note)
+  const typed = noteText
   const isTypedPicked = (await read($, isNotePicked)) && typed.trim().length > 0
   const pickedCount = picked.length + (isTypedPicked ? 1 : 0)
 
@@ -323,7 +329,7 @@ const drawSummary = async (
     // The person's own words go last, after the picked steps.
     const text = [list, own].filter(part => part.length > 0).join('\n\n')
     await update($, isHidden, () => true)
-    await update($, note, () => '')
+    noteText = ''
     await update($, isNotePicked, () => false)
     await $.prompt.submit({ text, asUser: true })
   }
@@ -477,14 +483,18 @@ const drawSummary = async (
           )}
           <Box flexGrow={1} flexShrink={1}>
             <Input
-              key="note"
+              // A field of its own per turn, so each starts empty; no `value`, so a
+              // redraw never writes over what is being typed.
+              key={`note-${summary.turnId}`}
               placeholder={t.notePlaceholder}
-              value={typed}
               // No button of its own: Send at the top sends; Enter still does.
               submitLabel=""
               onInput={value => {
-                void update($, note, () => value)
-                void update($, isNotePicked, () => value.trim().length > 0)
+                const wasEmpty = noteText.trim().length === 0
+                noteText = value
+                const isEmpty = value.trim().length === 0
+                // Typing into an empty field checks it; emptying it unchecks it.
+                if (wasEmpty !== isEmpty) void update($, isNotePicked, () => !isEmpty)
               }}
               onSubmit={value => void send(value)}
             />
@@ -609,7 +619,7 @@ export const register: Register = (on, options) => {
     const lang = setting !== 'auto' ? setting : detectLang(requestText, locale)
     await update($, last, () => ({ turnId, ms: e.durationMs, steps: null, isPlaced: false, request, answer, lang }))
     await update($, selected, () => [])
-    await update($, note, () => '')
+    noteText = ''
     await update($, isNotePicked, () => false)
     await update($, isHidden, () => false)
     await update($, durations, cur => {
