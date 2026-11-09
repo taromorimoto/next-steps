@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.13.2 – unreleased
+
+- The text field spans the row, starts in the steps' text column, and shows a small ↵ while focused instead of a blank pill.
+- Step markers sit in a slot of fixed width, so unmarked steps' text lines up with the marked ones on the desktop too.
+
 ## 0.13.1 – unreleased
 
 - The text field no longer loses letters or moves the cursor while you type: the band no longer redraws, writing the text back, on every keystroke. Each turn gets a fresh, empty field.

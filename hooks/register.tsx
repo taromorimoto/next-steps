@@ -268,9 +268,9 @@ const CLAUDE_ICON = svgDoc(
 const STAR_ICON = svgDoc(
   '<polygon fill="#E8A33D" points="12,2.5 14.8,8.7 21.5,9.3 16.4,13.7 18,20.3 12,16.8 6,20.3 7.6,13.7 2.5,9.3 9.2,8.7"/>',
 )
-/** Keeps the marker's column on a row with none. */
-const NO_ICON = svgDoc('<rect width="24" height="24" fill="none"/>')
 const ICON_SIZE = 14
+/** Cells kept for a step's marker, Claude's mark or the star, on every row alike. */
+const MARKER_SLOT = 2
 
 /** Splits text into lines of at most `width` characters at spaces; a longer word gets a line of its own. */
 export const wrapWords = (text: string, width: number): string[] => {
@@ -427,16 +427,21 @@ const drawSummary = async (
                   hotkey={withHotkeys ? String(i + 1) : undefined}
                   onPress={() => toggle(i)}
                 />
-                {/* Claude's own pick wears its mark, the band's a star. The marker's
-                    place is kept on every row, so all the steps' text starts in one column. */}
+                {/* Claude's own pick wears its mark, the band's a star. The marker sits
+                    in a slot of fixed width on every row, so all the steps' text starts
+                    in one column: an empty Svg alone takes no room on the desktop. */}
                 {hasPointer && Svg !== undefined ? (
-                  <Svg
-                    key={`mark-${i}`}
-                    source={isClaudes ? CLAUDE_ICON : isRecommended ? STAR_ICON : NO_ICON}
-                    alt={isClaudes ? t.byClaude : isRecommended ? '★' : ' '}
-                    width={ICON_SIZE}
-                    height={ICON_SIZE}
-                  />
+                  <Box key={`slot-${i}`} width={MARKER_SLOT} flexShrink={0} alignItems="center">
+                    {isClaudes || isRecommended ? (
+                      <Svg
+                        key={`mark-${i}`}
+                        source={isClaudes ? CLAUDE_ICON : STAR_ICON}
+                        alt={isClaudes ? t.byClaude : '★'}
+                        width={ICON_SIZE}
+                        height={ICON_SIZE}
+                      />
+                    ) : null}
+                  </Box>
                 ) : isClaudes ? (
                   <Text color="claude">✻</Text>
                 ) : (
@@ -466,6 +471,7 @@ const drawSummary = async (
           flexDirection="row"
           alignItems="center"
           columnGap={1}
+          width="100%"
           marginTop={stepList.length > 0 ? 'xs' : 'sm'}
           paddingX={hasPointer ? 'xs' : 0}
         >
@@ -477,18 +483,20 @@ const drawSummary = async (
             onPress={() => update($, isNotePicked, cur => !cur)}
           />
           {hasPointer && Svg !== undefined ? (
-            <Svg key="note-mark" source={NO_ICON} alt=" " width={ICON_SIZE} height={ICON_SIZE} />
+            <Box key="note-slot" width={MARKER_SLOT} flexShrink={0} />
           ) : (
             <Text> </Text>
           )}
-          <Box flexGrow={1} flexShrink={1}>
+          {/* The field takes the rest of the row. */}
+          <Box flexGrow={1} flexShrink={1} flexDirection="column" alignItems="stretch">
             <Input
               // A field of its own per turn, so each starts empty; no `value`, so a
               // redraw never writes over what is being typed.
               key={`note-${summary.turnId}`}
               placeholder={t.notePlaceholder}
-              // No button of its own: Send at the top sends; Enter still does.
-              submitLabel=""
+              // Send at the top sends; Enter does too, as the small ↵ beside the
+              // focused field says (an empty label drew a blank pill there).
+              submitLabel="↵"
               onInput={value => {
                 const wasEmpty = noteText.trim().length === 0
                 noteText = value
