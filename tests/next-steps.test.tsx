@@ -741,3 +741,103 @@ test('the band\'s own field adds the person\'s words to the picked steps, or sen
   expect(submitted.at(-1)).toBe('Tee seuraavaksi nämä:\n1. Aja testit\n3. Testi testi')
   await band.unmount()
 })
+
+test('a turn that ends with background work in flight tells the model, and the band says what the session waits for', { options: { language: 'fi' } }, async ($, on) => {
+  const clock = mock.clock(on)
+  const forkPrompts: string[] = []
+  const replies = [
+    '{"goal": "Kirjautuminen valmiiksi", "question": null, "waiting": "Testiajo on vielä käynnissä taustalla", "steps": [{"step": "Kirjoita README", "detail": "Ei riipu testien tuloksesta."}]}',
+    '{"goal": "Kirjautuminen valmiiksi", "question": null, "waiting": null, "steps": [{"step": "Julkaise versio", "recommended": true}]}',
+  ]
+  on('turn.complete', () => ({ text: '' }))
+  on('classic.Stop', () => ({}))
+  on('ui.place', () => ({ value: { isPlaced: false, reason: 'no attached surface draws placed rows yet' } }))
+  on('model.fork', (_, e) => {
+    forkPrompts.push(e.prompt)
+    return { value: { isAnswered: true, text: replies[Math.min(forkPrompts.length, replies.length) - 1]!, usage: USAGE } }
+  })
+  on('model.complete', () => ({ deny: 'the fork answered; no fallback expected' }))
+
+  // The engine raises Stop right before the turn's end: what it lists is still running.
+  await $.classic.Stop({
+    stop_hook_active: false,
+    background_tasks: [{ id: 'b1', type: 'shell', status: 'running', description: 'Run the test suite', command: 'npm test' }],
+    session_crons: [{ id: 'c1', schedule: '*/5 * * * *', recurring: false, prompt: 'Check the deploy' }],
+  })
+  await finishTurn($, { turnId: 'a' })
+  await clock.settle()
+  expect(forkPrompts[0]).toContain('- shell (running): Run the test suite [npm test]')
+  expect(forkPrompts[0]).toContain('- scheduled wake-up (*/5 * * * *): Check the deploy')
+  expect(forkPrompts[0]).toContain('"waiting": "..." or null')
+
+  const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
+  expect((await band.find({ type: 'Text', text: /Testiajo/ }))?.text).toBe('◷ Testiajo on vielä käynnissä taustalla')
+  // What can be sent meanwhile is offered, and nothing is checked for the person.
+  expect(await stepRow(band, 0)).toBe('☐ Kirjoita README Ei riipu testien tuloksesta.')
+  await band.unmount()
+
+  // The work finished and woke the session: the next turn's Stop lists nothing.
+  await $.classic.Stop({ stop_hook_active: false, background_tasks: [], session_crons: [] })
+  await finishTurn($, { turnId: 'b' })
+  await clock.settle()
+  expect(forkPrompts[1]).toContain('no background work of this session still in flight')
+  expect(forkPrompts[1]).not.toContain('npm test')
+  const after = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
+  expect(await after.find({ type: 'Text', text: /^◷/ })).toBeUndefined()
+  expect(await stepRow(after, 0)).toBe('☑ Julkaise versio ★')
+  await after.unmount()
+
+  // A subagent's Stop is not the session's, and a turn with no Stop heard claims nothing.
+  await $.classic.Stop({
+    stop_hook_active: false,
+    agent_id: 'a1',
+    agent_type: 'Explore',
+    background_tasks: [{ id: 'b2', type: 'shell', status: 'running', description: 'A subagent build', command: 'make' }],
+    session_crons: [],
+  })
+  await finishTurn($, { turnId: 'c' })
+  await clock.settle()
+  expect(forkPrompts[2]).not.toContain('A subagent build')
+  expect(forkPrompts[2]).not.toContain('The engine report')
+  expect(forkPrompts[2]).not.toContain('the engine reported')
+})
+
+test('with nothing to fork, the last request and answer are read with what was still in flight', { options: { language: 'en' } }, async ($, on) => {
+  const clock = mock.clock(on)
+  const prompts: string[] = []
+  on('turn.complete', () => ({ text: '' }))
+  on('classic.Stop', () => ({}))
+  on('ui.place', () => ({ value: { isPlaced: false, reason: 'no attached surface draws placed rows yet' } }))
+  on('model.fork', () => ({ value: { isAnswered: false, reason: 'nothing-to-fork', usage: USAGE } }))
+  on('model.complete', (_, e) => {
+    prompts.push(e.prompt)
+    return {
+      value: {
+        isAnswered: true,
+        text: '{"goal": "Ship the importer", "question": null, "waiting": "The review subagent is still running", "steps": [{"step": "Draft the changelog"}]}',
+        usage: USAGE,
+      },
+    }
+  })
+
+  on('prompt.submit', (_, e) => ({ text: e.text }))
+
+  await $.prompt.submit({ text: 'Ship the importer' } as never)
+  // The engine's own wake-up is not the person's request.
+  await $.prompt.submit({ text: '<task-notification>b1 finished</task-notification>', origin: { kind: 'task-notification' } } as never)
+  await $.classic.Stop({
+    stop_hook_active: false,
+    background_tasks: [{ id: 's1', type: 'subagent', status: 'running', description: 'Review the importer', agent_type: 'general-purpose' }],
+    session_crons: [],
+  })
+  await finishTurn($)
+  await clock.settle()
+  expect(prompts[0]).toContain('- subagent general-purpose (running): Review the importer')
+  expect(prompts[0]).toContain('<request>\nShip the importer\n</request>')
+  expect(prompts[0]).not.toContain('task-notification')
+
+  // The line reads the same on the terminal.
+  const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'terminal', props: BAND_PROPS })
+  expect((await band.find({ type: 'Text', text: /review subagent/ }))?.text).toBe('◷ The review subagent is still running')
+  await band.unmount()
+})

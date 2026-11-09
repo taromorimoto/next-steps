@@ -23,6 +23,10 @@ export type Summary = {
   goal?: string | null
   /** The question the assistant ended its turn with, if it did; the steps are then replies to it. */
   question?: string | null
+  /** What the session is waiting for to finish before the work goes on (a build, a test run, a subagent), when it is. */
+  waiting?: string | null
+  /** The background work still in flight and the wake-ups scheduled when the turn ended, one line each, as the engine's Stop listed them; absent when it was not heard. */
+  inFlight?: readonly string[]
   answer?: string
 }
 

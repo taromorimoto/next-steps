@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.17.0 – unreleased
+
+- The band understands a turn that ends with the session waiting: when background work is still under way (a test run, a build, a subagent, a scheduled check), it shows what the session waits for (◷) and suggests only steps that fit the wait, with no milestones and usually nothing checked. What is still running comes from the engine's own list at the end of the turn; a dev server or a watcher left running on purpose is not a wait.
+- A turn the session was woken for (the background work finished, a schedule fired) keeps the person's last request for the labels' language and the fallback call, instead of the engine's notification.
+
 ## 0.16.1 – unreleased
 
 - While the next steps are being found, the band shows only "Getting next steps…": no goal, no Send or Close, no text field.

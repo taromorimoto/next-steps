@@ -154,7 +154,12 @@ export const parseSteps = (text: string): ParsedSteps => {
   }
 }
 
-export type Suggestion = ParsedSteps & { goal: string | null; question: string | null }
+export type Suggestion = ParsedSteps & {
+  goal: string | null
+  question: string | null
+  /** What the session is waiting for to finish before the work goes on, when it is; else null. */
+  waiting: string | null
+}
 
 /**
  * A question's replies mostly exclude each other: one carries Claude's mark at
@@ -170,8 +175,8 @@ const textOrNull = (value: unknown): string | null =>
   typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
 
 /**
- * Pulls `{ "goal": "...", "question": "..." | null, "steps": [...] }` out of a
- * model reply; a bare steps array (no goal, no question) is taken too.
+ * Pulls `{ "goal": "...", "question": "..." | null, "waiting": "..." | null, "steps": [...] }`
+ * out of a model reply; a bare steps array (no goal, no question, no wait) is taken too.
  */
 export const parseSuggestion = (text: string): Suggestion => {
   const start = text.indexOf('{')
@@ -180,17 +185,62 @@ export const parseSuggestion = (text: string): Suggestion => {
     try {
       const parsed: unknown = JSON.parse(text.slice(start, end + 1))
       if (parsed !== null && typeof parsed === 'object' && Array.isArray((parsed as { steps?: unknown }).steps)) {
-        const o = parsed as { goal?: unknown; question?: unknown; steps: unknown[] }
+        const o = parsed as { goal?: unknown; question?: unknown; waiting?: unknown; steps: unknown[] }
         const question = textOrNull(o.question)
         const steps = parseSteps(JSON.stringify(o.steps))
-        return { goal: textOrNull(o.goal), question, ...(question === null ? steps : oneAnswer(steps)) }
+        return {
+          goal: textOrNull(o.goal),
+          question,
+          waiting: textOrNull(o.waiting),
+          ...(question === null ? steps : oneAnswer(steps)),
+        }
       }
     } catch {
       // Fall through to a bare array.
     }
   }
-  return { goal: null, question: null, ...parseSteps(text) }
+  return { goal: null, question: null, waiting: null, ...parseSteps(text) }
 }
+
+/** A piece of background work as the Stop hook lists it (the engine's `background_tasks`). */
+export type InFlightTask = {
+  type: string
+  status: string
+  description: string
+  command?: string
+  agent_type?: string
+  server?: string
+  tool?: string
+  name?: string
+}
+
+/** A wake-up the session scheduled for itself (the engine's `session_crons`). */
+export type Wakeup = { schedule: string; recurring: boolean; prompt: string }
+
+const MAX_IN_FLIGHT = 8
+
+const oneLine = (text: string, max: number) => {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  return flat.length <= max ? flat : `${flat.slice(0, max - 1)}…`
+}
+
+/**
+ * What was still under way when a turn ended, one line each for the model to
+ * read: the background work in flight, then the wake-ups scheduled.
+ */
+export const inFlightLines = (tasks: readonly InFlightTask[] = [], wakeups: readonly Wakeup[] = []): string[] =>
+  [
+    ...tasks.map(task => {
+      const what = [task.agent_type, task.name, [task.server, task.tool].filter(x => x !== undefined).join('/')]
+        .filter((x): x is string => x !== undefined && x.length > 0)
+        .join(' ')
+      const command = task.command !== undefined && task.command.length > 0 ? ` [${task.command}]` : ''
+      return `${task.type}${what.length > 0 ? ` ${what}` : ''} (${task.status}): ${task.description}${command}`
+    }),
+    ...wakeups.map(w => `${w.recurring ? 'recurring schedule' : 'scheduled wake-up'} (${w.schedule}): ${w.prompt}`),
+  ]
+    .slice(0, MAX_IN_FLIGHT)
+    .map(line => oneLine(line, 240))
 
 const clip = (text: string, max: number) =>
   text.length <= max ? text : `${text.slice(0, max / 2)}\n…\n${text.slice(-max / 2)}`
@@ -204,30 +254,46 @@ const goalLine = (previousGoal: string | null) =>
 const QUESTION = `If the assistant's last turn ended by asking the user something (a question, a choice between options, a request for a go-ahead or approval, whether in its text or in a question put to the user through a tool, such as a question box with answer buttons), set "question" to that question, short (max ~15 words). The steps are then the replies the user could send: first the options the assistant itself offered, in its own words, shortened; then at most two other sensible replies. Each reply's title is short and says what to do (e.g. "Yes, fix it here" or "Option B: a pane"), its detail what that choice means. Otherwise set "question" to null.`
 
 /** Without a question, a step or two hands Claude a larger piece of the goal to drive on its own. */
-const MILESTONES = `When the turn did not end on a question, make one or two of the steps higher-level, listed last and marked "milestone": true: a bigger outcome toward the goal that the assistant could drive on its own across several tasks, choosing the smaller steps itself and stopping only for decisions that are the user's (e.g. title "Finish the login flow", detail "Tests, docs and a release, with Claude choosing the smaller steps"). Keep the other steps concrete.`
+const MILESTONES = `When the turn ended neither on a question nor with the session waiting, make one or two of the steps higher-level, listed last and marked "milestone": true: a bigger outcome toward the goal that the assistant could drive on its own across several tasks, choosing the smaller steps itself and stopping only for decisions that are the user's (e.g. title "Finish the login flow", detail "Tests, docs and a release, with Claude choosing the smaller steps"). Keep the other steps concrete.`
+
+/** What the engine saw still under way when the turn ended, said to the model; nothing when it was not heard. */
+const inFlightNote = (inFlight: readonly string[] | undefined) =>
+  inFlight === undefined
+    ? ''
+    : inFlight.length === 0
+      ? ' The engine reports no background work of this session still in flight and no wake-up scheduled.'
+      : ` When the turn ended, the engine reported this background work of the session still in flight or scheduled; the session is woken by itself when one finishes or fires:\n${inFlight.map(line => `- ${line}`).join('\n')}\n`
+
+/** A turn can end with the session waiting on work still under way: the band says on what, and the steps fit the wait. */
+const waitingRule = (inFlight: readonly string[] | undefined) => `Work out how the turn ended.${inFlightNote(inFlight)}
+If the work cannot go on until something finishes (a build, a test run, a deploy, a subagent or workflow still running, a scheduled check, a CI run elsewhere), set "waiting" to one short sentence (max ~14 words) that reads on its own: what is still under way and, where that is so, that the assistant carries on by itself when it finishes (e.g. "The test run is still going; Claude reports back when it is done"). Something left running on purpose, such as a dev server or a file watcher, is not a wait. Otherwise set "waiting" to null.
+
+While the session waits, suggest 1 to ${MAX_STEPS} steps that make sense to send before the wait ends: work that neither needs its result nor disturbs it, or checking on it or stopping it where that is useful. Never suggest starting what is already running, or what the assistant will do by itself once it finishes. Where the session is woken by itself, mark a step "recommended" only when it is clearly worth sending before then: usually none.`
 
 const ASK = `"recommended" decides which steps start checked: together they are what the user would most likely send next, as one request. Weigh which combination makes the best next request, not which steps are good in general. Often that is a single step; mark more only when they clearly belong in the same next request, and none when no step stands out (for example when the user has to decide something first). The order of the steps does not matter: never mark a step because it comes first. For a question, mark the one reply you think the user should send.
 
 Set "claude": true on a step only when the assistant itself, in the conversation, recommended that very step: said it recommends or prefers it, or offered to do it next. Merely listing an option is not recommending it. For a question, set it on one reply at most: the one the assistant said it recommends (or its primary answer button), never on several replies. Leave it out for steps only you thought of. "claude" only shows the assistant's mark and checks nothing: if you agree with the assistant's pick, mark it "recommended" too.
 
-Reply with only JSON: {"goal": "...", "question": "..." or null, "steps": [{"step": "short title", "detail": "one sentence", "recommended": true, "claude": true, "milestone": true}, ...]} (leave out "claude" and "milestone" where they do not apply)`
+Reply with only JSON: {"goal": "...", "question": "..." or null, "waiting": "..." or null, "steps": [{"step": "short title", "detail": "one sentence", "recommended": true, "claude": true, "milestone": true}, ...]} (leave out "claude" and "milestone" where they do not apply)`
 
 /** Asked of a fork of the session's own transcript: it knows the whole conversation. */
-const forkPrompt = (previousGoal: string | null) => `Step outside the conversation for a moment: do not continue the work, call no tools, and do not address the user.
+const forkPrompt = (previousGoal: string | null, inFlight?: readonly string[]) => `Step outside the conversation for a moment: do not continue the work, call no tools, and do not address the user.
 
 1. In one short sentence (max ~15 words), state the overall goal of this whole session: what the user is ultimately trying to achieve, not just their last message. ${goalLine(previousGoal)}
-2. Suggest 3 to ${MAX_STEPS} concrete next steps the user might want the assistant to do next, each one a short title of 2 to 5 words that fits on one line (an imperative, max ~40 characters) and a "detail": one short sentence (max ~20 words) saying what exactly it means or why; each one moving toward that goal (or, when the turn ended on a question, 2 to ${MAX_STEPS} replies to it, as below). Do not suggest what is already done.
+2. Suggest 3 to ${MAX_STEPS} concrete next steps the user might want the assistant to do next, each one a short title of 2 to 5 words that fits on one line (an imperative, max ~40 characters) and a "detail": one short sentence (max ~20 words) saying what exactly it means or why; each one moving toward that goal (or, when the turn ended on a question, 2 to ${MAX_STEPS} replies to it, and while the session waits, what fits the wait, as below). Do not suggest what is already done.
 
 ${QUESTION}
 
+${waitingRule(inFlight)}
+
 ${MILESTONES}
 
-Write the goal, the question and the steps in the language the user writes in.
+Write the goal, the question, what the session waits for and the steps in the language the user writes in.
 
 ${ASK}`
 
 /** The fallback when there is no transcript to fork: the last request and answer alone. */
-const stepsPrompt = (request: string, answer: string, previousGoal: string | null) => `A coding assistant just finished a task.
+const stepsPrompt = (request: string, answer: string, previousGoal: string | null, inFlight?: readonly string[]) => `A coding assistant just finished a task.
 
 <request>
 ${clip(request, 4000)}
@@ -238,13 +304,15 @@ ${clip(answer, 8000)}
 </final_answer>
 
 1. In one short sentence (max ~15 words), state the overall goal the user is working toward. ${goalLine(previousGoal)}
-2. Suggest 3 to ${MAX_STEPS} concrete next steps the user might want the assistant to do next, each one a short title of 2 to 5 words that fits on one line (an imperative, max ~40 characters) and a "detail": one short sentence (max ~20 words) saying what exactly it means or why; each one moving toward that goal (or, when the turn ended on a question, 2 to ${MAX_STEPS} replies to it, as below). Do not suggest things the answer says are already done.
+2. Suggest 3 to ${MAX_STEPS} concrete next steps the user might want the assistant to do next, each one a short title of 2 to 5 words that fits on one line (an imperative, max ~40 characters) and a "detail": one short sentence (max ~20 words) saying what exactly it means or why; each one moving toward that goal (or, when the turn ended on a question, 2 to ${MAX_STEPS} replies to it, and while the session waits, what fits the wait, as below). Do not suggest things the answer says are already done.
 
 ${QUESTION}
 
+${waitingRule(inFlight)}
+
 ${MILESTONES}
 
-Write the goal, the question, the steps and their details in the same language as the request.
+Write the goal, the question, what the session waits for, the steps and their details in the same language as the request.
 
 ${ASK}`
 
@@ -387,6 +455,13 @@ const drawSummary = async (
         {summary.question}
       </Text>
     ) : null
+  const waitingText =
+    summary.waiting != null && summary.waiting.length > 0 ? (
+      <Text key="waiting" wrap="wrap">
+        <Text color="warning" weight="semibold">◷ </Text>
+        {summary.waiting}
+      </Text>
+    ) : null
   const goalText =
     sessionGoal !== null ? (
       <Text weight="semibold" wrap="wrap">
@@ -410,6 +485,8 @@ const drawSummary = async (
           {buttons}
         </Box>
       )}
+      {/* The session waits on work still under way: on what, above what can be sent meanwhile. */}
+      {waitingText !== null ? <Box marginTop="sm">{waitingText}</Box> : null}
       {/* Claude ended on a question: the steps below are the replies it offered. */}
       {stepList.length > 0 && questionText !== null ? <Box marginTop="sm">{questionText}</Box> : null}
       {stepList.length === 0 ? null : (
@@ -562,12 +639,16 @@ const drawSummary = async (
 
 const STEPS_TIMEOUT_MS = 90_000
 
-const NONE: Suggestion = { goal: null, question: null, steps: [], details: [], recommended: [], byClaude: [], milestones: [] }
+/** The prompts the engine itself starts a turn with after a wait: not the person's words. */
+const WAKE_UPS: ReadonlySet<string | undefined> = new Set(['task-notification', 'scheduled-trigger'])
+
+const NONE: Suggestion = { goal: null, question: null, waiting: null, steps: [], details: [], recommended: [], byClaude: [], milestones: [] }
 
 /**
  * Finds the session's goal and goal-aligned steps for one turn and stores them:
  * first from a fork of the whole conversation, else from the last request and
- * answer. Never leaves the summary stuck loading.
+ * answer. Both are told what was still in flight when the turn ended, where the
+ * engine said. Never leaves the summary stuck loading.
  */
 const generateSteps = async (
   $: EngineInterface,
@@ -575,13 +656,14 @@ const generateSteps = async (
   request: string,
   answer: string,
   isAutoLang: boolean,
+  inFlight?: readonly string[],
 ) => {
   const previousGoal = await read($, goal).catch(() => null)
   let parsed: Suggestion = NONE
 
   try {
     const timedOut = $.clock.sleep(STEPS_TIMEOUT_MS).then(() => null)
-    const forked = await Promise.race([$.model.fork({ prompt: forkPrompt(previousGoal) }), timedOut])
+    const forked = await Promise.race([$.model.fork({ prompt: forkPrompt(previousGoal, inFlight) }), timedOut])
     if (forked !== null && forked.isAnswered) parsed = parseSuggestion(forked.text)
   } catch {
     // No fork: fall back below.
@@ -591,7 +673,7 @@ const generateSteps = async (
     try {
       const reply = await $.model.complete({
         model: 'opus',
-        prompt: stepsPrompt(request, answer, previousGoal),
+        prompt: stepsPrompt(request, answer, previousGoal, inFlight),
         effort: 'low',
         maxTokens: 1024,
         timeoutMs: STEPS_TIMEOUT_MS,
@@ -616,11 +698,12 @@ const generateSteps = async (
           milestones: parsed.milestones,
           goal: parsed.goal ?? cur.goal,
           question: parsed.question,
+          waiting: parsed.waiting,
           // On "auto" the steps decide when they can: they are written in the conversation's
           // language, while the request may be short, pasted, or the band's own English message.
           lang:
             isAutoLang && parsed.steps.length > 0
-              ? (guessLang([parsed.goal ?? '', parsed.question ?? '', ...parsed.steps].join(' ')) ?? cur.lang)
+              ? (guessLang([parsed.goal ?? '', parsed.question ?? '', parsed.waiting ?? '', ...parsed.steps].join(' ')) ?? cur.lang)
               : cur.lang,
         }
       : cur,
@@ -640,9 +723,22 @@ export const register: Register = (on, options) => {
 
   on('prompt.submit', async ($, e, next) => {
     // Kept in state, not a module variable, so a reload mid-turn does not lose it.
-    void update($, lastRequest, () => e.text).catch(() => {})
+    // A turn the session was woken for (work finished, a schedule fired) still answers the person's last request.
+    if (!WAKE_UPS.has(e.origin?.kind)) void update($, lastRequest, () => e.text).catch(() => {})
     // Never let hiding the summary hold up the person's prompt.
     void update($, isHidden, () => true).catch(() => {})
+    return next(e)
+  })
+
+  /**
+   * What the main loop's latest Stop listed as still in flight. The engine
+   * raises Stop right before the same turn's `turn.complete`, which takes it.
+   */
+  let endedWith: string[] | undefined
+
+  on('classic.Stop', async ($, e, next) => {
+    // A subagent's stop is not the session's.
+    if (e.agent_id === undefined) endedWith = inFlightLines(e.background_tasks, e.session_crons)
     return next(e)
   })
 
@@ -653,7 +749,7 @@ export const register: Register = (on, options) => {
     const summary = await read($, last).catch(() => null)
     if (summary !== null && summary.steps === null) {
       if (summary.answer !== undefined) {
-        void generateSteps($, summary.turnId, summary.request ?? '', summary.answer, setting === 'auto')
+        void generateSteps($, summary.turnId, summary.request ?? '', summary.answer, setting === 'auto', summary.inFlight)
       } else {
         await update($, last, cur => (cur !== null && cur.turnId === summary.turnId ? { ...cur, steps: [] } : cur))
       }
@@ -665,7 +761,11 @@ export const register: Register = (on, options) => {
     const result = await next(e)
 
     // Main conversation only, and only turns that actually finished.
-    if (e.agentId !== undefined || e.isAborted || e.reason !== 'answer') {
+    if (e.agentId !== undefined) return result
+    // One Stop's list is one turn's: never read again by a later turn.
+    const inFlight = endedWith
+    endedWith = undefined
+    if (e.isAborted || e.reason !== 'answer') {
       return result
     }
 
@@ -674,7 +774,7 @@ export const register: Register = (on, options) => {
     const request = clip(requestText, 4000)
     const answer = clip(e.answer, 8000)
     const lang = setting !== 'auto' ? setting : detectLang(requestText, locale)
-    await update($, last, () => ({ turnId, ms: e.durationMs, steps: null, isPlaced: false, request, answer, lang }))
+    await update($, last, () => ({ turnId, ms: e.durationMs, steps: null, isPlaced: false, request, answer, lang, inFlight }))
     await update($, selected, () => [])
     noteText = ''
     await update($, isNotePicked, () => false)
@@ -692,7 +792,7 @@ export const register: Register = (on, options) => {
       await update($, last, cur => (cur !== null && cur.turnId === turnId ? { ...cur, isPlaced: true } : cur))
     }
 
-    void generateSteps($, turnId, request, answer, setting === 'auto')
+    void generateSteps($, turnId, request, answer, setting === 'auto', inFlight)
 
     return result
   })

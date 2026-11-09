@@ -7,6 +7,8 @@ A Claude Code mod that shows, every time Claude finishes a task:
 
 When Claude ends a task with a question (*"Should I fix this here or in a new PR?"*), the band shows that question (**?**) and turns the options Claude offered into the choices, with Claude's own recommendation marked with the Claude icon. A single picked reply is sent under its number, with no list heading.
 
+When a task ends with the session **waiting on work still under way** (a test run or a build in the background, a subagent, a scheduled check), the band says so (**◷** *"The tests are still running; Claude reports back when they are done"*) and suggests only what makes sense to send meanwhile, usually with nothing checked. It knows what is running from the engine's own list of the session's background work and scheduled wake-ups at the end of the turn; something left running on purpose, such as a dev server, is not a wait.
+
 ![The next-steps band in the Claude desktop app, labels in Finnish](docs/band.png)
 
 The same band, drawn as text:
