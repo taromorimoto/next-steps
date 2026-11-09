@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.2 – unreleased
+
+- The Claude icon and the star come after a step's text, so every step's text, and the text field, starts right after its checkbox: a step without a mark no longer leaves a gap.
+
 ## 0.14.1 – unreleased
 
 - A dim step of several lines lights all its lines, and its number, while the pointer is anywhere on the row, instead of only the line under the pointer.

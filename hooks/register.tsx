@@ -270,7 +270,6 @@ const STAR_ICON = svgDoc(
 )
 const ICON_SIZE = 14
 /** Cells kept for a step's marker, Claude's mark or the star, on every row alike. */
-const MARKER_SLOT = 2
 
 /** Splits text into lines of at most `width` characters at spaces; a longer word gets a line of its own. */
 export const wrapWords = (text: string, width: number): string[] => {
@@ -434,26 +433,6 @@ const drawSummary = async (
                   hotkey={withHotkeys ? String(i + 1) : undefined}
                   onPress={() => toggle(i)}
                 />
-                {/* Claude's own pick wears its mark, the band's a star. The marker sits
-                    in a slot of fixed width on every row, so all the steps' text starts
-                    in one column: an empty Svg alone takes no room on the desktop. */}
-                {hasPointer && Svg !== undefined ? (
-                  <Box key={`slot-${i}`} width={MARKER_SLOT} flexShrink={0} alignItems="center">
-                    {isClaudes || isRecommended ? (
-                      <Svg
-                        key={`mark-${i}`}
-                        source={isClaudes ? CLAUDE_ICON : STAR_ICON}
-                        alt={isClaudes ? t.byClaude : '★'}
-                        width={ICON_SIZE}
-                        height={ICON_SIZE}
-                      />
-                    ) : null}
-                  </Box>
-                ) : isClaudes ? (
-                  <Text color="claude">✻</Text>
-                ) : (
-                  <Text color="warning">{isRecommended ? '★' : ' '}</Text>
-                )}
                 <Box flexDirection="column" flexShrink={1}>
                   {lines.map((line, n) => (
                     <Button
@@ -469,6 +448,24 @@ const drawSummary = async (
                     />
                   ))}
                 </Box>
+                {/* Claude's own pick wears its mark, the band's a star, after the text:
+                    every step's text starts right after its checkbox, and a step
+                    with no mark leaves no gap. */}
+                {isClaudes || isRecommended ? (
+                  hasPointer && Svg !== undefined ? (
+                    <Svg
+                      key={`mark-${i}`}
+                      source={isClaudes ? CLAUDE_ICON : STAR_ICON}
+                      alt={isClaudes ? t.byClaude : '★'}
+                      width={ICON_SIZE}
+                      height={ICON_SIZE}
+                    />
+                  ) : isClaudes ? (
+                    <Text color="claude">✻</Text>
+                  ) : (
+                    <Text color="warning">★</Text>
+                  )
+                ) : null}
               </Box>
             )
           })}
@@ -493,11 +490,6 @@ const drawSummary = async (
             dimColor={!isTypedPicked}
             onPress={() => update($, isNotePicked, cur => !cur)}
           />
-          {hasPointer && Svg !== undefined ? (
-            <Box key="note-slot" width={MARKER_SLOT} flexShrink={0} />
-          ) : (
-            <Text> </Text>
-          )}
           {/* The field takes the rest of the row. */}
           <Box flexGrow={1} flexShrink={1} flexDirection="column" alignItems="stretch">
             <Input

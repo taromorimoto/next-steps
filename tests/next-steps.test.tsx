@@ -7,7 +7,7 @@ const row = (id: string) =>
     props: { id, plugin: 'next-steps' },
   }) as const
 
-/** A step as the band draws it: ☑ for a picked checkbox button, ☐ otherwise, then the star and the text lines. */
+/** A step as the band draws it: ☑ for a picked checkbox button, ☐ otherwise, then the text lines and its mark. */
 const stepRow = async (ui: any, i: number) => {
   const box = await ui.find({ type: 'Button', key: `step-${i}` })
   const find = (node: any): any =>
@@ -234,7 +234,7 @@ test('a reload during generation picks the generation up again, recommended step
 
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
   // The recommended step comes back checked and starred after the reload too.
-  expect(await stepRow(band, 0)).toBe('☑ ★ Testaa palkki')
+  expect(await stepRow(band, 0)).toBe('☑ Testaa palkki ★')
   expect(await stepRow(band, 1)).toBe('☐ Siisti koodi')
   expect((await band.find({ type: 'Button', key: 'send' }))?.props.label).toBe('Send selected (1)')
   await band.unmount()
@@ -256,9 +256,9 @@ test('the steps the model recommends start checked', { options: { language: 'en'
   await clock.settle()
 
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
-  expect(await stepRow(band, 0)).toBe('☑ ★ Aja testit')
+  expect(await stepRow(band, 0)).toBe('☑ Aja testit ★')
   expect(await stepRow(band, 1)).toBe('☐ Päivitä README')
-  expect(await stepRow(band, 2)).toBe('☑ ★ Julkaise')
+  expect(await stepRow(band, 2)).toBe('☑ Julkaise ★')
   expect((await band.find({ type: 'Button', key: 'send' }))?.props.label).toBe('Send selected (2)')
   await band.unmount()
 })
@@ -353,7 +353,7 @@ test('the band leads with the session goal from a fork of the conversation', { o
 
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
   expect((await band.find({ type: 'Text', text: /Ship a next-steps mod/ }))?.text).toBe('◎ Ship a next-steps mod for Claude Code')
-  expect(await stepRow(band, 0)).toBe('☑ ★ Release 0.5.0')
+  expect(await stepRow(band, 0)).toBe('☑ Release 0.5.0 ★')
   await band.unmount()
 
   // The next turn asks with the goal found so far, so it stays stable.
@@ -377,7 +377,7 @@ test('with nothing to fork, the last request and answer give the goal and steps'
 
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
   expect((await band.find({ type: 'Text', text: /Kauppalista/ }))?.text).toBe('◎ Kauppalista-sovellus valmiiksi')
-  expect(await stepRow(band, 0)).toBe('☑ ★ Lisää jakaminen')
+  expect(await stepRow(band, 0)).toBe('☑ Lisää jakaminen ★')
   await band.unmount()
 })
 
@@ -414,7 +414,7 @@ test('the step rows draw on every surface, with hotkeys on the terminal alone', 
 
   for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
     const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface, props: BAND_PROPS })
-    expect(await stepRow(band, 0)).toBe('☑ ★ One')
+    expect(await stepRow(band, 0)).toBe('☑ One ★')
     expect((await band.find({ type: 'Button', key: 'step-0' }))?.props.hotkey).toBe(surface === 'terminal' ? '1' : undefined)
     await band.unmount()
   }
@@ -451,6 +451,14 @@ test('the step text toggles the step too, wraps into lines, and lights the row o
     for (const child of n.children ?? []) collect(child)
   }
   collect(await band.drawn())
+  // A step with no mark is its checkbox and its text alone: nothing between them.
+  const rowOf = (node: any): any =>
+    node === null || typeof node !== 'object'
+      ? undefined
+      : node.props?.key === 'row-0'
+        ? node
+        : (node.children ?? []).map(rowOf).find((x: any) => x !== undefined)
+  expect(rowOf(await band.drawn()).children.map((c: any) => c.type)).toEqual(['Button', 'Box'])
   for (const line of lines) expect(hovers.get(String((line as { key?: string }).key))).toEqual({ dimColor: false })
   expect(hovers.get('step-0')).toEqual({ dimColor: false })
   // A press on the text, its second line here, toggles the step as the checkbox does.
@@ -489,7 +497,7 @@ test('when Claude ends on a question, the band shows it with the replies Claude 
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
   expect((await band.find({ type: 'Text', text: /Kumpi ulkoasu/ }))?.text).toBe('? Kumpi ulkoasu otetaan käyttöön?')
   // Claude's own pick wears the Claude icon and starts checked.
-  expect(await stepRow(band, 0)).toBe('☑ ✻ Ota käyttöön paneeli')
+  expect(await stepRow(band, 0)).toBe('☑ Ota käyttöön paneeli ✻')
   const svgs: any[] = []
   const walk = (node: any) => {
     if (node === null || typeof node !== 'object') return
@@ -535,8 +543,8 @@ test('the terminal marks Claude\'s own pick with ✻ and the band\'s with ★', 
   await finishTurn($)
   await clock.settle()
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'terminal', props: BAND_PROPS })
-  expect(await stepRow(band, 0)).toBe('☑ ✻ Fix it here')
-  expect(await stepRow(band, 1)).toBe('☑ ★ Add a test')
+  expect(await stepRow(band, 0)).toBe('☑ Fix it here ✻')
+  expect(await stepRow(band, 1)).toBe('☑ Add a test ★')
   expect(await stepRow(band, 2)).toBe('☐ Later')
   await band.unmount()
 })
@@ -566,7 +574,7 @@ test('without a question, the last steps can be milestones toward the goal, mark
   expect(forkPrompts[0]).toContain('"milestone": true')
 
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
-  expect(await stepRow(band, 0)).toBe('☑ ★ Add a logout test')
+  expect(await stepRow(band, 0)).toBe('☑ Add a logout test ★')
   expect(await stepRow(band, 1)).toBe('☐ ◎ Take the login flow to done: tests, docs and a release')
   // The checkboxes are numbered, the text field's next in line.
   expect((await band.find({ type: 'Button', key: 'step-0' }))?.props.label).toBe('1')
@@ -594,7 +602,7 @@ test('a question with several replies Claude listed checks and marks only one', 
   await finishTurn($)
   await clock.settle()
   const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
-  expect(await stepRow(band, 0)).toBe('☑ ✻ Julkaise korjaukset')
+  expect(await stepRow(band, 0)).toBe('☑ Julkaise korjaukset ✻')
   expect(await stepRow(band, 1)).toBe('☐ Ei vielä, odota')
   expect(await stepRow(band, 2)).toBe('☐ Julkaise vain web')
   expect((await band.find({ type: 'Button', key: 'send' }))?.props.label).toBe('Lähetä valitut (1)')

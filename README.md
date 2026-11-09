@@ -3,9 +3,9 @@
 A Claude Code mod that shows, every time Claude finishes a task:
 
 - **the goal of the session**, as Opus reads it from the whole conversation, kept stable from task to task, and
-- **3–5 suggested next steps** that move toward that goal. The steps Opus recommends are starred (★) and already checked; a step Claude itself proposed or recommended in the conversation wears the Claude icon (✻ in the terminal) and is checked too. The last one or two are often **milestones** (◎): a bigger piece of the goal that Claude can drive on its own, choosing the smaller steps itself. Pick any combination and press **Send selected** to send them as your next prompt, each under the number it has in the band. A text field under the steps, with its own checkbox, takes your own words: typing checks it, and they are sent after the picked steps under the field's number, or alone as typed if none is picked (Enter sends too).
+- **3–5 suggested next steps** that move toward that goal. The steps Opus recommends end in a star (★) and are already checked; a step Claude itself proposed or recommended in the conversation ends in the Claude icon (✻ in the terminal) and is checked too. The last one or two are often **milestones** (◎): a bigger piece of the goal that Claude can drive on its own, choosing the smaller steps itself. Pick any combination and press **Send selected** to send them as your next prompt, each under the number it has in the band. A text field under the steps, with its own checkbox, takes your own words: typing checks it, and they are sent after the picked steps under the field's number, or alone as typed if none is picked (Enter sends too).
 
-When Claude ends a task with a question (*"Should I fix this here or in a new PR?"*), the band shows that question (**?**) and turns the options Claude offered into the choices, with Claude's own recommendation marked with the Claude icon. A single picked reply is sent as it is.
+When Claude ends a task with a question (*"Should I fix this here or in a new PR?"*), the band shows that question (**?**) and turns the options Claude offered into the choices, with Claude's own recommendation marked with the Claude icon. A single picked reply is sent under its number, with no list heading.
 
 ![The next-steps band in the Claude desktop app, labels in Finnish](docs/band.png)
 
@@ -14,11 +14,11 @@ The same band, drawn as text:
 ```
 ◎ Ship a login flow with tests                 [ Send selected (2) ]  [ Close ]
 
-[1] ✻ Run the tests in CI        (1 and 3 picked, drawn filled)
-[2]   Update the README
-[3] ★ Add logout
+[1] Run the tests in CI ✻        (1 and 3 picked, drawn filled)
+[2] Update the README
+[3] Add logout ★
 [4] ◎ Take the login flow to done: tests, docs and a release
-[5]   [ Add your own words…                                                ]
+[5] [ Add your own words…                                                  ]
 ```
 
 The suggested steps follow the language of your request.
