@@ -202,6 +202,21 @@ test('a model call that rejects leaves no stuck loading line', async ($, on) => 
   await band.unmount()
 })
 
+test('while the steps load, the band shows the loading line alone', { options: { language: 'fi' } }, async ($, on) => {
+  on('turn.complete', () => ({ text: '' }))
+  on('ui.place', () => ({ value: { isPlaced: false, reason: 'no attached surface draws placed rows yet' } }))
+  // A fork that has not answered yet.
+  on('model.fork', () => new Promise(() => {}))
+  await finishTurn($)
+  const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
+  expect((await band.find({ type: 'Text', text: /Haetaan seuraavia askeleita/ }))?.text).toBe('Haetaan seuraavia askeleita…')
+  // No goal, no Send or Close, no field: nothing to act on yet.
+  expect(await band.findAll({ type: 'Button' })).toEqual([])
+  expect(await band.find({ type: 'Input' })).toBeUndefined()
+  expect(JSON.stringify(await band.drawn())).not.toContain('◎')
+  await band.unmount()
+})
+
 test('a reload during generation picks the generation up again, recommended steps checked', { options: { language: 'en' } }, async ($, on) => {
   const clock = mock.clock(on)
   // What the module before the reload stored: a summary still loading.

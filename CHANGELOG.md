@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.16.1 – unreleased
+
+- While the next steps are being found, the band shows only "Getting next steps…": no goal, no Send or Close, no text field.
+
 ## 0.16.0 – unreleased
 
 - The steps that start checked are the ones Opus judges the best next request together, often a single one or none, instead of "one to three", which mostly checked the first two. Claude's icon alone no longer checks a step; for a question, Claude's pick is still checked when Opus picks none.

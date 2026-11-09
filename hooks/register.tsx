@@ -351,6 +351,10 @@ const drawSummary = async (
     await $.prompt.submit({ text, asUser: true })
   }
 
+  // While the steps are still being found, the band says so and nothing else:
+  // no goal, no buttons, no field to act on yet.
+  if (steps === null) return <Text dimColor>{t.loading}</Text>
+
   const sessionGoal = summary.goal ?? (await read($, goal))
   const stepList = steps ?? []
 
@@ -407,10 +411,8 @@ const drawSummary = async (
         </Box>
       )}
       {/* Claude ended on a question: the steps below are the replies it offered. */}
-      {steps !== null && stepList.length > 0 && questionText !== null ? <Box marginTop="sm">{questionText}</Box> : null}
-      {steps === null ? (
-        <Text dimColor>{t.loading}</Text>
-      ) : stepList.length === 0 ? null : (
+      {stepList.length > 0 && questionText !== null ? <Box marginTop="sm">{questionText}</Box> : null}
+      {stepList.length === 0 ? null : (
         // The checkbox buttons stand taller than a line of text: the rows always
         // keep room between them, so neighbouring buttons never overlap.
         <Box flexDirection="column" rowGap={hasPointer ? 'xs' : 'sm'} marginTop="sm">
