@@ -317,20 +317,23 @@ const drawSummary = async (
 
   /** `written`: the field's text as Enter sent it, newer than this drawing's. */
   const send = async (written?: string) => {
-    const chosen = picked.map(i => steps?.[i]).filter((s): s is string => s !== undefined)
+    // Each picked step keeps the number the band shows it under, so "3." in the
+    // message is the row the person checked.
+    const chosen = picked.flatMap(i => {
+      const step = steps?.[i]
+      return step === undefined ? [] : [{ n: i + 1, text: step }]
+    })
     // Read the field now, not as this drawing saw it: typing redraws the band
     // only when the field turns empty or not, so `typed` can be the first letter.
     const isNowPicked = await read($, isNotePicked)
     const own = written !== undefined ? written.trim() : isNowPicked ? noteText.trim() : ''
     if (chosen.length === 0 && own.length === 0) return
-    const list =
-      chosen.length === 0
-        ? ''
-        : chosen.length === 1
-          ? chosen[0]!
-          : `${t.doTheseNext}\n${chosen.map((s, n) => `${n + 1}. ${s}`).join('\n')}`
-    // The person's own words go last, after the picked steps.
-    const text = [list, own].filter(part => part.length > 0).join('\n\n')
+    // The person's own words go last, under the field's own number; alone they
+    // go out as typed.
+    const items = own.length > 0 && chosen.length > 0 ? [...chosen, { n: (steps?.length ?? 0) + 1, text: own }] : chosen
+    const numbered = items.map(({ n, text }) => `${n}. ${text}`).join('\n')
+    const text =
+      items.length === 0 ? own : items.length === 1 ? numbered : `${t.doTheseNext}\n${numbered}`
     await update($, isHidden, () => true)
     noteText = ''
     await update($, isNotePicked, () => false)

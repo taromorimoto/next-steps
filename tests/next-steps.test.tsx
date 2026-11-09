@@ -76,7 +76,7 @@ test('a finished turn shows its duration and selectable next steps; the picked o
   expect((await ui.find({ type: 'Button', key: 'send' }))?.props.label).toBe('Send selected (2)')
 
   await ui.press({ key: 'send' })
-  expect(submitted.at(-1)).toBe('Do these next:\n1. Lisää uloskirjautuminen\n2. Aja testit CI:ssä')
+  expect(submitted.at(-1)).toBe('Do these next:\n1. Lisää uloskirjautuminen\n3. Aja testit CI:ssä')
   expect(await ui.find({ type: 'Button', key: 'send' })).toBeUndefined()
   expect((await ui.find({ type: 'Text' }))?.text).toBe('✓ Done · took 3m 12s')
   await ui.unmount()
@@ -488,9 +488,9 @@ test('when Claude ends on a question, the band shows it with the replies Claude 
   expect(mark?.props.alt).toBe('Clauden suositus')
   expect(mark?.props.source).toContain('#D97757')
   expect(await stepRow(band, 1)).toBe('☐ Ota käyttöön palkki')
-  // One reply goes out as it is, with no "do these next" line around it.
+  // One reply goes out under its number, with no "do these next" line around it.
   await band.press({ key: 'send' })
-  expect(submitted.at(-1)).toBe('Ota käyttöön paneeli')
+  expect(submitted.at(-1)).toBe('1. Ota käyttöön paneeli')
   await band.unmount()
 })
 
@@ -563,7 +563,7 @@ test('without a question, the last steps can be milestones toward the goal, mark
   await band.press({ key: 'step-0' })
   await band.press({ key: 'step-1' })
   await band.press({ key: 'send' })
-  expect(submitted.at(-1)).toBe('Take the login flow to done: tests, docs and a release')
+  expect(submitted.at(-1)).toBe('2. Take the login flow to done: tests, docs and a release')
   await band.unmount()
 })
 
@@ -619,7 +619,7 @@ test('the band\'s own field adds the person\'s words to the picked steps, or sen
   expect((await band.find({ type: 'Button', key: 'send' }))?.props.label).toBe('Lähetä valitut (1)')
   await band.press({ key: 'note-pick' })
   await band.press({ key: 'send' })
-  expect(submitted.at(-1)).toBe('Aja testit\n\nKäytä stagingia ensin')
+  expect(submitted.at(-1)).toBe('Tee seuraavaksi nämä:\n1. Aja testit\n3. Käytä stagingia ensin')
   await band.unmount()
 
   // Next turn: nothing picked, Enter in the field sends the words alone, and the field starts empty.
@@ -645,6 +645,6 @@ test('the band\'s own field adds the person\'s words to the picked steps, or sen
   await band.input({ key: String(third!.key), text: 'Te', kind: 'change' })
   await band.input({ key: String(third!.key), text: 'Testi testi', kind: 'change' })
   await band.press({ key: 'send' })
-  expect(submitted.at(-1)).toBe('Aja testit\n\nTesti testi')
+  expect(submitted.at(-1)).toBe('Tee seuraavaksi nämä:\n1. Aja testit\n3. Testi testi')
   await band.unmount()
 })

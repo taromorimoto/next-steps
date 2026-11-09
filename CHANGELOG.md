@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.0 – unreleased
+
+- The sent message numbers each item as the band does: picking steps 1 and 3 sends "1." and "3.", a single step keeps its number too, and your own words come last under the text field's number. Your words alone still go out as typed.
+
 ## 0.13.3 – unreleased
 
 - Send now sends all of the text typed in the field, not only its first letter.
