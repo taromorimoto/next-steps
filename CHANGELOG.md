@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.15.2 – unreleased
+
+- On the desktop a step's title and detail sit closer to the checkbox, and the Claude icon or star right after the title: the button's own padding is the only room left there.
+
 ## 0.15.1 – unreleased
 
 - On the desktop a step's detail is inset as far as its title sits inside its button, so the title and the detail start in one column.

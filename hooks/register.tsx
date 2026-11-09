@@ -448,7 +448,9 @@ const drawSummary = async (
                 flexDirection="row"
                 // With a detail under it, the checkbox sits by the title.
                 alignItems={detail === null ? 'center' : 'flex-start'}
-                columnGap={1}
+                // A desktop pads the title inside its button, which already keeps it
+                // clear of the checkbox: a gap on top of that pushed it too far off.
+                columnGap={hasPointer ? 0 : 1}
                 // Padded so the wash under the pointer covers the whole row,
                 // the taller checkbox included, not a strip behind the text.
                 paddingY={hasPointer ? 'xs' : 0}
@@ -466,7 +468,8 @@ const drawSummary = async (
                   onPress={() => toggle(i)}
                 />
                 <Box flexDirection="column" flexShrink={1}>
-                  <Box flexDirection="row" alignItems="center" columnGap={1}>
+                  {/* The mark sits right after the title, the button's own padding between. */}
+                  <Box flexDirection="row" alignItems="center" columnGap={hasPointer ? 0 : 1}>
                     {hasPointer ? (
                       // One line, one button: the pill the desktop draws under the
                       // pointer covers the whole title.
@@ -495,7 +498,8 @@ const drawSummary = async (
                   </Box>
                   {/* What the step means, in smaller text under it; it wraps freely.
                       A desktop pads the text inside the title's button, about a
-                      cell: the detail is inset as much, so both start in one column. */}
+                      cell: the detail is inset as much, so both start in one column,
+                      about a cell from the checkbox. */}
                   {detail !== null ? (
                     <Box key={`detail-${i}`} paddingLeft={hasPointer ? 1 : 0}>
                       <Text size="caption" dimColor wrap="wrap">
