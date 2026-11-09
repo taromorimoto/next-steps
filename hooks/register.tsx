@@ -430,6 +430,7 @@ const drawSummary = async (
                   label={withHotkeys ? '✓' : String(i + 1)}
                   variant={isPicked ? 'primary' : 'secondary'}
                   dimColor={!isPicked}
+                  hover={hasPointer && !isPicked ? { dimColor: false } : undefined}
                   hotkey={withHotkeys ? String(i + 1) : undefined}
                   onPress={() => toggle(i)}
                 />
@@ -460,6 +461,10 @@ const drawSummary = async (
                       label={line}
                       plain
                       dimColor={!isPicked}
+                      // A dim button lights only under the pointer itself, so a step
+                      // of several lines lit one line at a time: light them all
+                      // while the pointer is anywhere on the row.
+                      hover={hasPointer && !isPicked ? { dimColor: false } : undefined}
                       onPress={() => toggle(i)}
                     />
                   ))}

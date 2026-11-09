@@ -440,6 +440,19 @@ test('the step text toggles the step too, wraps into lines, and lights the row o
   // Wrapped into lines that together hold the whole step, none cut short.
   expect(lines.length).toBeGreaterThan(1)
   expect(await stepRow(band, 0)).toBe('☐ Package the body, lid and rubber STL files into a zip for a friend')
+  // A dim step lights all its lines, and its number, while the pointer is
+  // anywhere on the row, not only the line under it.
+  // A Button's hover rides on the drawn element, beside its props, where `find` does not show it.
+  const hovers = new Map<string, unknown>()
+  const collect = (node: unknown): void => {
+    if (node === null || typeof node !== 'object') return
+    const n = node as { type?: string; props?: { key?: string }; hover?: unknown; children?: unknown[] }
+    if (n.type === 'Button' && n.props?.key !== undefined) hovers.set(n.props.key, n.hover)
+    for (const child of n.children ?? []) collect(child)
+  }
+  collect(await band.drawn())
+  for (const line of lines) expect(hovers.get(String((line as { key?: string }).key))).toEqual({ dimColor: false })
+  expect(hovers.get('step-0')).toEqual({ dimColor: false })
   // A press on the text, its second line here, toggles the step as the checkbox does.
   await band.press({ key: 'text-0-1' })
   expect((await stepRow(band, 0)).startsWith('☑ ')).toBe(true)

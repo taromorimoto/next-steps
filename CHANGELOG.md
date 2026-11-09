@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.1 – unreleased
+
+- A dim step of several lines lights all its lines, and its number, while the pointer is anywhere on the row, instead of only the line under the pointer.
+
 ## 0.14.0 – unreleased
 
 - The sent message numbers each item as the band does: picking steps 1 and 3 sends "1." and "3.", a single step keeps its number too, and your own words come last under the text field's number. Your words alone still go out as typed.
