@@ -7,9 +7,9 @@ export type Summary = {
   steps: readonly string[] | null
   /** Each step's explaining sentence, by index, drawn small under its short title; null where there is none. */
   details?: readonly (string | null)[]
-  /** Indexes into `steps` the model recommends; drawn with a star and checked at first. */
+  /** Indexes into `steps` the model judged the best next request, together; checked at first, drawn with a star unless Claude's. */
   recommended?: readonly number[]
-  /** Indexes into `steps` that Claude itself proposed or recommended in the conversation; drawn with the Claude icon and checked at first. */
+  /** Indexes into `steps` that Claude itself proposed or recommended in the conversation; drawn with the Claude icon; checked at first only if also recommended (or, for a question, when nothing is). */
   byClaude?: readonly number[]
   /** Indexes into `steps` that are higher-level milestones toward the goal, for Claude to drive on its own; drawn with ◎. */
   milestones?: readonly number[]

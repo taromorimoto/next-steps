@@ -618,6 +618,33 @@ test('without a question, the last steps can be milestones toward the goal, mark
   await band.unmount()
 })
 
+test('Claude\'s mark alone checks nothing: what the model recommends as the next request starts checked', { options: { language: 'en' } }, async ($, on) => {
+  const clock = mock.clock(on)
+  const forkPrompts: string[] = []
+  on('turn.complete', () => ({ text: '' }))
+  on('ui.place', () => ({ value: { isPlaced: false, reason: 'no attached surface draws placed rows yet' } }))
+  on('model.fork', (_, e) => {
+    forkPrompts.push(e.prompt)
+    return {
+      value: {
+        isAnswered: true,
+        text: '{"goal": "Ship it", "steps": [{"step": "Refactor the band", "claude": true}, {"step": "Add a test"}, {"step": "Release 1.0", "recommended": true}]}',
+        usage: USAGE,
+      },
+    }
+  })
+  await finishTurn($)
+  await clock.settle()
+  // The prompt asks for the best next request, not for the first steps.
+  expect(forkPrompts[0]).toContain('never mark a step because it comes first')
+  const band = await $.ui.mount({ plugin: 'next-steps', component: 'AbovePrompt', surface: 'desktop', props: BAND_PROPS })
+  expect(await stepRow(band, 0)).toBe('☐ Refactor the band ✻')
+  expect(await stepRow(band, 1)).toBe('☐ Add a test')
+  expect(await stepRow(band, 2)).toBe('☑ Release 1.0 ★')
+  expect((await band.find({ type: 'Button', key: 'send' }))?.props.label).toBe('Send selected (1)')
+  await band.unmount()
+})
+
 test('a question with several replies Claude listed checks and marks only one', { options: { language: 'fi' } }, async ($, on) => {
   const clock = mock.clock(on)
   on('turn.complete', () => ({ text: '' }))

@@ -157,12 +157,12 @@ export const parseSteps = (text: string): ParsedSteps => {
 export type Suggestion = ParsedSteps & { goal: string | null; question: string | null }
 
 /**
- * A question's replies mostly exclude each other: one may carry Claude's mark
- * and one the star, Claude's pick first, so only one reply starts checked.
+ * A question's replies mostly exclude each other: one carries Claude's mark at
+ * most, and one starts checked, the model's pick, else Claude's own.
  */
 const oneAnswer = (steps: ParsedSteps): ParsedSteps => {
   const byClaude = steps.byClaude.slice(0, 1)
-  const recommended = byClaude.length > 0 ? [] : steps.recommended.slice(0, 1)
+  const recommended = steps.recommended.length > 0 ? steps.recommended.slice(0, 1) : byClaude
   return { ...steps, byClaude, recommended }
 }
 
@@ -206,9 +206,9 @@ const QUESTION = `If the assistant's last turn ended by asking the user somethin
 /** Without a question, a step or two hands Claude a larger piece of the goal to drive on its own. */
 const MILESTONES = `When the turn did not end on a question, make one or two of the steps higher-level, listed last and marked "milestone": true: a bigger outcome toward the goal that the assistant could drive on its own across several tasks, choosing the smaller steps itself and stopping only for decisions that are the user's (e.g. title "Finish the login flow", detail "Tests, docs and a release, with Claude choosing the smaller steps"). Keep the other steps concrete.`
 
-const ASK = `Mark as recommended the steps you would advise doing next (at least one, usually one to three); leave optional or speculative ones unmarked. For a question, mark the reply the assistant recommended (or the one you would pick), and only one when the options exclude each other.
+const ASK = `"recommended" decides which steps start checked: together they are what the user would most likely send next, as one request. Weigh which combination makes the best next request, not which steps are good in general. Often that is a single step; mark more only when they clearly belong in the same next request, and none when no step stands out (for example when the user has to decide something first). The order of the steps does not matter: never mark a step because it comes first. For a question, mark the one reply you think the user should send.
 
-Set "claude": true on a step only when the assistant itself, in the conversation, recommended that very step: said it recommends or prefers it, or offered to do it next. Merely listing an option is not recommending it. For a question, set it on one reply at most: the one the assistant said it recommends (or its primary answer button), never on several replies. Leave it out for steps only you thought of.
+Set "claude": true on a step only when the assistant itself, in the conversation, recommended that very step: said it recommends or prefers it, or offered to do it next. Merely listing an option is not recommending it. For a question, set it on one reply at most: the one the assistant said it recommends (or its primary answer button), never on several replies. Leave it out for steps only you thought of. "claude" only shows the assistant's mark and checks nothing: if you agree with the assistant's pick, mark it "recommended" too.
 
 Reply with only JSON: {"goal": "...", "question": "..." or null, "steps": [{"step": "short title", "detail": "one sentence", "recommended": true, "claude": true, "milestone": true}, ...]} (leave out "claude" and "milestone" where they do not apply)`
 
@@ -623,8 +623,9 @@ const generateSteps = async (
         }
       : cur,
   )
-  // The recommended steps, and Claude's own, start checked, unless the person already picked some.
-  const preselected = [...new Set([...parsed.recommended, ...parsed.byClaude])].sort((a, b) => a - b)
+  // What the model judged the best next request starts checked, unless the person already
+  // picked some; Claude's mark alone checks nothing.
+  const preselected = [...parsed.recommended].sort((a, b) => a - b)
   await update($, selected, cur => (cur.length > 0 ? cur : preselected))
 }
 

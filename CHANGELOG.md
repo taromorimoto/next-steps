@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.16.0 – unreleased
+
+- The steps that start checked are the ones Opus judges the best next request together, often a single one or none, instead of "one to three", which mostly checked the first two. Claude's icon alone no longer checks a step; for a question, Claude's pick is still checked when Opus picks none.
+
 ## 0.15.2 – unreleased
 
 - On the desktop a step's title and detail sit closer to the checkbox, and the Claude icon or star right after the title: the button's own padding is the only room left there.
