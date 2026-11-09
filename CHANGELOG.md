@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.15.1 – unreleased
+
+- On the desktop a step's detail is inset as far as its title sits inside its button, so the title and the detail start in one column.
+
 ## 0.15.0 – unreleased
 
 - Each step is a short title on one line, the button that picks it, with a smaller dim sentence under it saying what it means. Send sends the title and its detail together. This replaces 0.14.3's wrapping button, which the desktop did not wrap.

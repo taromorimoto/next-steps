@@ -472,6 +472,8 @@ test('a step is a short title that toggles it, with a smaller detail under it, a
   const detail = texts.find(x => x.props?.size === 'caption')
   expect(detail.type).toBe('Text')
   expect(detail.props).toMatchObject({ size: 'caption', dimColor: true, wrap: 'wrap' })
+  // Inset as far as the desktop pads the title inside its button, so the two start in one column.
+  expect(rowOf(row, 'detail-0').props.paddingLeft).toBe(1)
   expect(await stepRow(band, 0)).toBe('☐ Package the files Zip the body, lid and rubber STL files so a friend can print them')
   // A dim step lights, its number too, while the pointer is anywhere on the row.
   expect(title.hover).toEqual({ dimColor: false })

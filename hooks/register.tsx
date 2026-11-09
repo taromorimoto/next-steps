@@ -493,11 +493,15 @@ const drawSummary = async (
                     )}
                     {mark}
                   </Box>
-                  {/* What the step means, in smaller text under it; it wraps freely. */}
+                  {/* What the step means, in smaller text under it; it wraps freely.
+                      A desktop pads the text inside the title's button, about a
+                      cell: the detail is inset as much, so both start in one column. */}
                   {detail !== null ? (
-                    <Text size="caption" dimColor wrap="wrap">
-                      {detail}
-                    </Text>
+                    <Box key={`detail-${i}`} paddingLeft={hasPointer ? 1 : 0}>
+                      <Text size="caption" dimColor wrap="wrap">
+                        {detail}
+                      </Text>
+                    </Box>
                   ) : null}
                 </Box>
               </Box>
